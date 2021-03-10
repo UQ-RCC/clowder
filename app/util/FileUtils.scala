@@ -373,7 +373,7 @@ object FileUtils {
     Future {
       try {
         saveFile(file, f.ref.file, originalZipFile, clowderurl, apiKey, Some(user)).foreach { fixedfile =>
-          processFileBytes(fixedfile, f.ref.file, dataset)
+          processFileBytes(fixedfile, f.ref.file, dataset, folder)
           files.setStatus(fixedfile.id, FileStatus.UPLOADED)
           processFile(fixedfile, clowderurl, index, flagsFromPrevious, showPreviews, dataset, runExtractors, apiKey)
           processDataset(file, dataset, folder, clowderurl, user, index, runExtractors, apiKey)
@@ -428,7 +428,7 @@ object FileUtils {
     val fileExecutionContext: ExecutionContext = Akka.system().dispatchers.lookup("akka.actor.contexts.file-processing")
     Future {
       saveURL(file, url, clowderurl, apiKey, Some(user)).foreach { fixedfile =>
-        processFileBytes(fixedfile, new java.io.File(path), fileds)
+        processFileBytes(fixedfile, new java.io.File(path), fileds, folder)
         files.setStatus(fixedfile.id, FileStatus.UPLOADED)
         processFile(fixedfile, clowderurl, index, flagsFromPrevious, showPreviews, fileds, runExtractors, apiKey)
         processDataset(file, fileds, folder, clowderurl, user, index, runExtractors, apiKey)
@@ -487,7 +487,7 @@ object FileUtils {
       val fileExecutionContext: ExecutionContext = Akka.system().dispatchers.lookup("akka.actor.contexts.file-processing")
       Future {
         savePath(file, path).foreach { fixedfile =>
-          processFileBytes(fixedfile, new java.io.File(path), fileds)
+          processFileBytes(fixedfile, new java.io.File(path), fileds, folder)
           files.setStatus(fixedfile.id, FileStatus.UPLOADED)
           processFile(fixedfile, clowderurl, index, flagsFromPrevious, showPreviews, fileds, runExtractors, apiKey)
           processDataset(file, fileds, folder, clowderurl, user, index, runExtractors, apiKey)
@@ -692,12 +692,30 @@ object FileUtils {
    * Process the bytes on disk, send them as xml/rdf and store a copy. This will work with the original
    * data after it has been send to Clowdders storage area.
    */
-  private def processFileBytes(file: File, fp: java.io.File, dataset: Option[Dataset]): Unit = {
+  private def processFileBytes(file: File, fp: java.io.File, dataset: Option[Dataset], folder: Option[Folder]=None): Unit = {
     if (!file.isIntermediate) {
       // store the file
       current.plugin[FileDumpService].foreach {
         _.dump(DumpOfFile(fp, file.id.toString(), file.filename))
       }
+
+      current.plugin[FileOrganiserService].foreach {
+        _.copy(FileItem(fp, file.id.toString(), file.filename, dataset, folder)) match {
+          case Some(newPath) => {
+            files.get(file.id) match {
+              case Some(f) => {
+                Logger.debug("saving: " + newPath + " filename:" + f.filename)
+                val fixedfile = f.copy(filename=f.filename, contentType=f.contentType, loader=f.loader, loader_id=newPath, length=f.length, author=f.author)
+                files.save(fixedfile)
+                // only remove when newpath successlly stored in database
+                org.apache.commons.io.FileUtils.deleteQuietly(fp)
+              }
+            }
+          }
+          case None => Logger.debug("No path returned")
+        }
+      }
+
 
       // for metadata files
       if (file.contentType.equals("application/xml") || file.contentType.equals("text/xml")) {
