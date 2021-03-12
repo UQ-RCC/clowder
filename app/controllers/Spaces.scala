@@ -407,6 +407,12 @@ class Spaces @Inject() (spaces: SpaceService, users: UserService, events: EventS
     implicit val user = request.user
     user match {
       case Some(identity) => {
+        if(play.api.Play.configuration.getBoolean("onlyAdminsCreateSpace").getOrElse(false)) {
+          val requestUser = users.findByIdentity(identity)
+          if(requestUser == None || requestUser.status != UserStatus.Admin) {
+            return BadRequest("Only admin can create space.")
+          }
+        }
         val userId = request.user.get.id
         //need to get the submitValue before binding form data, in case of errors we want to trigger different forms
         request.body.asMultipartFormData.get.dataParts.get("submitValue").headOption match {

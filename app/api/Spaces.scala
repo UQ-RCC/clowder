@@ -35,6 +35,18 @@ class Spaces @Inject()(spaces: SpaceService,
     Logger.debug("Creating new space")
     val nameOpt = (request.body \ "name").asOpt[String]
     val descOpt = (request.body \ "description").asOpt[String]
+    // only admin create space
+    if(play.api.Play.configuration.getBoolean("onlyAdminsCreateSpace").getOrElse(false)) {
+      request.user match {
+        case Some(identity) => {
+          val requestUser = userService.findByIdentity(identity)
+          if(requestUser == None || requestUser.status != UserStatus.Admin) {
+            return BadRequest("Only admin can create space.")
+          }
+        }
+        case None => BadRequest(toJson("Missing user info"))
+      }
+    }
     (nameOpt, descOpt) match {
       case (Some(name), Some(description)) => {
         // TODO: add creator
