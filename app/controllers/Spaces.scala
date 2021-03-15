@@ -7,6 +7,7 @@ import javax.inject.Inject
 import api.Permission
 import api.Permission._
 import models._
+import play.api.Play._
 import play.api.{ Logger, Play }
 import play.api.data.Forms._
 import play.api.data.{ Form, Forms }
@@ -407,18 +408,27 @@ class Spaces @Inject() (spaces: SpaceService, users: UserService, events: EventS
     implicit val user = request.user
     user match {
       case Some(identity) => {
-        if(play.api.Play.configuration.getBoolean("onlyAdminsCreateSpace").getOrElse(false)) {
-          val requestUser = users.findByIdentity(identity)
-          if(requestUser == None || requestUser.status != UserStatus.Admin) {
-            return BadRequest("Only admin can create space.")
-          }
-        }
         val userId = request.user.get.id
         //need to get the submitValue before binding form data, in case of errors we want to trigger different forms
         request.body.asMultipartFormData.get.dataParts.get("submitValue").headOption match {
           case Some(x) => {
             x(0) match {
               case ("Create") => {
+                // check whether onlyAdminsCreateSpace is on
+                if(play.api.Play.configuration.getBoolean("onlyAdminsCreateSpace").getOrElse(false)) {
+                  // val requestUser = users.findByIdentity(identity)
+                  // if(requestUser == None || requestUser.get.status != UserStatus.Admin) {
+                  //   BadRequest("Only admin can create space.")
+                  // }
+                  users.findByIdentity(identity) match {
+                    case Some(requestUser) => {
+                      if (requestUser.status != UserStatus.Admin) {
+                        BadRequest("Only admin can create space.")
+                      }
+                    }
+                    case None => BadRequest("Only admin can create space.")
+                  }
+                } 
                 spaceForm.bindFromRequest.fold(
                   errors => BadRequest(views.html.spaces.newSpace(errors)),
                   formData => {

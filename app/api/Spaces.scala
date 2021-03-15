@@ -40,11 +40,13 @@ class Spaces @Inject()(spaces: SpaceService,
       request.user match {
         case Some(identity) => {
           val requestUser = userService.findByIdentity(identity)
-          if(requestUser == None || requestUser.status != UserStatus.Admin) {
-            return BadRequest("Only admin can create space.")
+          if(requestUser == None || requestUser.get.status != UserStatus.Admin) {
+            BadRequest(toJson("Only admin can create space."))
           }
         }
-        case None => BadRequest(toJson("Missing user info"))
+        case None => { 
+          BadRequest(toJson("Missing user info")) 
+        }
       }
     }
     (nameOpt, descOpt) match {
