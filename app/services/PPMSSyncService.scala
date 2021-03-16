@@ -42,6 +42,7 @@ class PPMSSyncService (application: Application) extends Plugin {
   var ppmsDefaultIdProvider: String = ""
   var ppmsDefaultAuthMethod: String = ""
   var ppmsStorageField: String = ""
+  var startingProjectId: Int = 0
   
   
   // services
@@ -57,10 +58,12 @@ class PPMSSyncService (application: Application) extends Plugin {
     if ( play.Play.application().configuration().getBoolean("enableUsernamePassword") ) {
       Logger.debug("Make sure to turn off usernamepassword to make this plugin works")
       return
-    } 
+    }
+
     var ppmsUrl = play.api.Play.configuration.getString("ppms.url").getOrElse("")
     if (!ppmsUrl.endsWith("/"))
 	    ppmsUrl = ppmsUrl + "/"
+    this.ppmsUrl = ppmsUrl
     this.ppmsPumaApiKey = play.api.Play.configuration.getString("ppms.pumapikey").getOrElse("")
     this.ppmsApi2Key = play.api.Play.configuration.getString("ppms.api2key").getOrElse("")
     this.ppmsGetProjectAction = play.api.Play.configuration.getString("ppms.action.getprojects").getOrElse("getprojects")
@@ -70,12 +73,16 @@ class PPMSSyncService (application: Application) extends Plugin {
     this.ppmsStorageField = play.api.Play.configuration.getString("ppms.project.profile.storagefield").getOrElse("RawDataCollection")
     this.ppmsDefaultIdProvider = play.api.Play.configuration.getString("ppms.default.securesocial").getOrElse("cilogon")
     this.ppmsDefaultAuthMethod = play.api.Play.configuration.getString("ppms.default.authmethod").getOrElse("oauth2")
-    
+    this.startingProjectId = play.api.Play.configuration.getInt("ppms.startingProjectId").getOrElse(0)
     
     /*start timeinterval*/
-    val timeInterval = play.Play.application().configuration().getInt("ppms.syncEvery") 
-	    Akka.system().scheduler.schedule(0.days, timeInterval.intValue().days){
-	      syncProjectsFromPPMS
+    val timeInterval = play.Play.application().configuration().getInt("ppms.syncEvery")
+    Logger.debug("time interval:" + timeInterval.toString)
+	  Akka.system().scheduler.schedule(0.minutes, timeInterval.intValue().minutes){
+      Logger.debug("Syncing ....")
+      if ( getFirstAdmin() != None ) {
+        syncProjectsFromPPMS
+      }
 	  }
   }
   
@@ -84,7 +91,7 @@ class PPMSSyncService (application: Application) extends Plugin {
   }
 
   override lazy val enabled = {
-    !application.configuration.getString("ppms.syncservice").filter(_ == "disabled").isDefined
+    !application.configuration.getString("ppmssyncservice").filter(_ == "disabled").isDefined
   }
 
   /**
@@ -94,30 +101,50 @@ class PPMSSyncService (application: Application) extends Plugin {
     // go though users in this project 
     val projectMembers = PPMSUtils.getPPMSProjectUsers(ppmsUrl, ppmsPumaApiKey, ppmsProjectId, ppmsGetProjectMemberAction, ppmsGetUserAction)
     projectMembers.foreach{member =>
-      users.findByEmail( ((member.get \ "email").as[String]) ) match {
+      val memberEmail = ((member.get \ "email").as[String])
+      users.findByEmail( memberEmail ) match {
         case Some(anUser) => {
-          // make sure this user is in space
-          spaces.addUser(anUser.id , Role.Editor, space.id)
+          // make sure this user is in space, if not so
+          users.getUserRoleInSpace(anUser.id, space.id) match {
+            case Some(userRole) => {
+              Logger.debug("User " + memberEmail + " existing role: " + userRole.name)
+              // ignore
+            }
+            case None => spaces.addUser(anUser.id , Role.Editor, space.id)
+          } 
         }
         case None => {
           // create new user
+          Logger.debug("User " + memberEmail + " does not exist! Create a new one!")
           val newUser = new ClowderUser(
                               id=UUID.generate,
                               identityId=new IdentityId( (member.get \ "email").as[String], ppmsDefaultIdProvider),
                               firstName=(member.get \ "fname").as[String],
                               lastName=(member.get \ "lname").as[String],
                               fullName=((member.get \ "fname").as[String] + " "+ (member.get \ "lname").as[String]),
-                              email=Some((member.get \ "email").as[String]),
+                              email=Some(memberEmail),
                               authMethod=AuthenticationMethod(ppmsDefaultAuthMethod),
                               status=UserStatus.Active,
                               termsOfServices=Some(UserTermsOfServices(accepted=false))
                             )
           val addedUser = users.insert(newUser)
           if(addedUser != None) {
+            Logger.debug("User created. Adding to space. Status= " + addedUser.get.status)
             spaces.addUser(addedUser.get.id , Role.Editor, space.id)
           }
         }
       } // end findByEmail
+    }
+  }
+
+  /**
+  * returns the admin user - the first if there are multiple
+  */
+  private def getFirstAdmin(): Option[User] = {
+    val firstAdmin = play.Play.application().configuration().getString("initialAdmins").trim.split("\\s*,\\s*").filter(_ != "").toList.head
+    users.findByEmail(firstAdmin) match {
+      case Some(admin) => Some(admin)
+      case None => None
     }
   }
 
@@ -151,25 +178,27 @@ class PPMSSyncService (application: Application) extends Plugin {
     val projGroup = (projectInfo \ "ProjectGroup").as[String]
     val projDesc = (projectInfo \ "Descr").as[String]
     val rawDataStorage = (extraProfile \ ppmsStorageField).as[String]
+    Logger.debug(">>>Syncing project: " + projName + " id=" + projId.toString)
     if (rawDataStorage == None || rawDataStorage.trim().isEmpty()) {
       Logger.debug("Project " + projName + " has no storage defined. Ignore!!!")
       return
     }
 
-    val desc = """Project ID:%d
-                    |RDM Collection:%s
-                    |ProjectType:%s
-                    |ProjectGroup:%s
-                    |Desc:%s""" format(projId, rawDataStorage, projType, projGroup, projDesc)
+    val desc = 
+    """Project ID:%d
+    RDM Collection:%s
+    ProjectType:%s
+    ProjectGroup:%s
+    Desc:%s""" format(projId, rawDataStorage, projType, projGroup, projDesc)
+
     Logger.debug("Syncing project: name =" + projName + " projectId=" + projId + " rawdata=" + rawDataStorage)
-    // least efficient, ...
-    val spaceList = spaces.list()
+    val spaceList = spaces.listUser(0, projName, None, true, getFirstAdmin.get)
     spaceList match {
       case Nil => {
         Logger.debug(">>>No space exists, create a new one")
         //create new space
         var newSpace = ProjectSpace(name = projName, description = desc,
-                                    created = new Date, creator = users.getAdmins.head.id, 
+                                    created = new Date, creator = getFirstAdmin.get.id, 
                                     homePage = List.empty, logoURL = None, bannerURL = None,
                                     collectionCount = 0, datasetCount = 0, userCount = 0, 
                                     metadata = List.empty,
@@ -183,7 +212,7 @@ class PPMSSyncService (application: Application) extends Plugin {
           return
         }
         val addedSpaceUUID = UUIDConversions.stringToUUID(addedSpace.get)
-        events.addObjectEvent(None, addedSpaceUUID, newSpace.name, "create_space")
+        events.addObjectEvent(getFirstAdmin, addedSpaceUUID, newSpace.name, "create_space")
         // metadata
         val creator = SyncAgent(id=UUID.generate, serverUrl=Some(new URL(ppmsUrl)) )
         val spaceMetadata : JsValue = JsObject(
@@ -235,6 +264,7 @@ class PPMSSyncService (application: Application) extends Plugin {
   * sync all projects from PPMS
   */
   private def syncProjectsFromPPMS(): Unit = {
+    Logger.debug("Start the syncing process ...")
     if(ppmsUrl.equals("") || ppmsPumaApiKey.equals("") || ppmsApi2Key.equals("")) {
       Logger.debug("ppms.url or key not provided, ignore")
       return
@@ -242,9 +272,12 @@ class PPMSSyncService (application: Application) extends Plugin {
     // get projects
     val projectsJsonArr = PPMSUtils.getPPMSProjects(ppmsUrl, ppmsPumaApiKey, ppmsGetProjectAction)
     projectsJsonArr.value.foreach { projectInfo =>
+      Logger.debug("Syncing project: " + (projectInfo \ "ProjectName").as[String])
       val projId = (projectInfo \ "ProjectRef").as[Int]
-      val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
-      projectXtraProfileArr.value.foreach(syncProject(projectInfo, _)) 
+      if ( projId >= startingProjectId ) {
+        val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
+        projectXtraProfileArr.value.foreach(syncProject(projectInfo, _)) 
+      }
     }
   } // end syncProjectsFromPPMS
 

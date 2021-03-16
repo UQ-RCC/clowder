@@ -5,6 +5,8 @@ import play.api.{Application, Logger}
 import play.api.libs.json.JsObject
 import securesocial.core._
 import scala.collection.JavaConverters._
+import play.api.Play._
+import models._
 
 
 /**
@@ -22,8 +24,15 @@ class CILogonProvider(application: Application) extends OAuth2Provider(applicati
   val Email = "email"
   val Groups = "isMemberOf"
 
+  val users: UserService = DI.injector.getInstance(classOf[UserService])
+  var mergeToExistUser: Boolean = false
 
   override def id = CILogonProvider.CILogon
+
+  override def onStart() {
+    super.onStart()
+    this.mergeToExistUser = play.Play.application().configuration().getBoolean("securesocial.cilogon.mergeToExistingUser")
+  }
 
   def fillProfile(user: SocialUser): SocialUser = {
     val UserInfoApi = loadProperty("userinfoUrl").getOrElse(throwMissingPropertiesException())
@@ -58,6 +67,15 @@ class CILogonProvider(application: Application) extends OAuth2Provider(applicati
             }
             case (Some(_), None) => throw new AuthenticationException()
             case (None, _) => Logger.error("[securesocial] No check needed for groups")
+          }
+          if( mergeToExistUser ) {
+            users.findByEmail( email.get ) match {
+              case Some(anUser) => {
+                if (anUser.identityId.providerId.equals(id)) {
+                  users.updateUserField(anUser.id, "identityId.userId", userId)
+                }
+              }
+            }
           }
           user.copy(
             identityId = IdentityId(userId, id),

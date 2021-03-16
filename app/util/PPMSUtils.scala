@@ -16,26 +16,46 @@ import play.api.libs.json._
 object PPMSUtils {
 
     /**
-    * requestPPMS
+    * request PPMS
+    * Sometimes string returns contains \t which throws error
     */
-    def requestPPMS(url: String, isApi2: Boolean, params: ArrayList[NameValuePair]): Option[HttpResponse] = {
+    def requestPPMS(url: String, isApi2: Boolean, params: ArrayList[NameValuePair]): Option[String] = {
+        Logger.debug("\t===>   PPMS request:" + params + "url:" + (url + (if (isApi2) "api2/" else "pumapi/")) )
         val httpclient = new DefaultHttpClient()
-        var httpresp: Option[HttpResponse] = None  
-        if (url == None)
-            return httpresp
-
-        val httpPost = new HttpPost(url + (if (isApi2) "api2/" else "pumapi/")) 
+        var respString: Option[String] = None
+        if (url == None || url.trim.equals(""))
+            return respString
+        var httpPost = new HttpPost(url + (if (isApi2) "api2/" else "pumapi/"))
+        if (isApi2) {
+            httpPost.setHeader("Content-Type", "application/x-www-form-urlencoded")
+            httpPost.setHeader("Cookie", "ASPSESSIONIDCWBTTABA=LDLFKLLDFKFIIPKBFDMPDDGK")
+        }
         try
         {
             httpPost.setEntity(new UrlEncodedFormEntity(params))
-            httpresp = Some(httpclient.execute(httpPost))
+            val httpresp = httpclient.execute(httpPost)
+            Logger.debug("PPMS response status: " + httpresp.getStatusLine().toString())
+            val status = httpresp.getStatusLine.getStatusCode()
+            if(status < 200 || status >= 300) {
+                Logger.debug("PPMS get project returns unexpected status code:" + status)
+            } else {
+                // digest the result
+                val projectsGetEntity = httpresp.getEntity()
+                if(projectsGetEntity == null)
+                    Logger.debug("PPMS get project returns null")
+                else
+                    respString = Some(EntityUtils.toString(projectsGetEntity).replace('\t', ' '))
+            }
         }
         finally
         {
-            httpPost.releaseConnection();
+            httpPost.releaseConnection()
         }
-        return httpresp
+        return respString
     }
+
+
+    
 
     /**
     * getPPMSProjects 
@@ -49,21 +69,7 @@ object PPMSUtils {
         val ppmsResponse = requestPPMS(url, false, params)
         ppmsResponse match {
             case Some(resp) => {
-                Logger.debug("PPMS get projects response status: " + resp.getStatusLine().toString())
-                val status = resp.getStatusLine.getStatusCode()
-                if(status < 200 || status >= 300) {
-                    Logger.debug("PPMS get project returns unexpected status code:" + status)
-                    return Json.arr().as[JsArray]
-                }
-                // digest the result
-                val projectsGetEntity = resp.getEntity()
-                if(projectsGetEntity == null) {
-                    Logger.debug("PPMS get project returns null")
-                    return Json.arr().as[JsArray]
-                }
-                val projectsGetResult = EntityUtils.toString(projectsGetEntity)
-                val projectsList: JsArray = Json.parse(projectsGetResult).as[JsArray]
-                Logger.debug("PPMS get projects response status: " + projectsList)
+                val projectsList: JsArray = Json.parse(resp).as[JsArray]
                 return projectsList
             }
             case None => {
@@ -95,19 +101,7 @@ object PPMSUtils {
         val ppmsResponse = requestPPMS(url, true, params)
         ppmsResponse match {
             case Some(projectProfileGetResponse) => {
-                val status = projectProfileGetResponse.getStatusLine.getStatusCode()
-                if(status < 200 || status >= 300) {
-                    Logger.debug("Get project profile returns unexpected status code:" + status)
-                    return Json.arr().as[JsArray]
-                }
-                //
-                val projectProfileGetEntity = projectProfileGetResponse.getEntity()
-                if(projectProfileGetEntity == null) {
-                    Logger.debug("Get project profile returns null")
-                    return Json.arr().as[JsArray]
-                }
-                val projectProfileGetResult = EntityUtils.toString(projectProfileGetEntity)
-                val projectProfileJson: JsArray = Json.parse(projectProfileGetResult).as[JsArray]
+                val projectProfileJson: JsArray = Json.parse(projectProfileGetResponse).as[JsArray]
                 Logger.debug("Get projects profile result: " + projectProfileJson)
                 return projectProfileJson
             }
@@ -125,24 +119,12 @@ object PPMSUtils {
         val params = new ArrayList[NameValuePair]()
         params.add(new BasicNameValuePair("apikey", pumakey))
         params.add(new BasicNameValuePair("action", getUserAction))
-        params.add(new BasicNameValuePair("login", username))
+        params.add(new BasicNameValuePair("login", username.replaceAll("\\r$", "") ))
         params.add(new BasicNameValuePair("format", "json"))
-        val ppmsResponse = requestPPMS(url, true, params)
+        val ppmsResponse = requestPPMS(url, false, params)
         ppmsResponse match {
             case Some(userGetResponse) => {
-                Logger.debug("Get user response status: " + userGetResponse.getStatusLine().toString())
-                val status = userGetResponse.getStatusLine.getStatusCode()
-                if(status < 200 || status >= 300) {
-                    Logger.debug("Get user returns unexpected status code:" + status)
-                    return None
-                }
-                val userGetEntity = userGetResponse.getEntity()
-                if(userGetEntity == null) {
-                    Logger.debug("Get user returns null")
-                    return None
-                }
-                val userGetResult = EntityUtils.toString(userGetEntity)
-                val userProfileJson: JsValue = Json.parse(userGetResult)
+                val userProfileJson: JsValue = Json.parse(userGetResponse)
                 Logger.debug("User profile: " + userProfileJson)
                 return Some(userProfileJson)
             }
@@ -163,33 +145,11 @@ object PPMSUtils {
         params.add(new BasicNameValuePair("action", getProjectUsersAction))
         params.add(new BasicNameValuePair("projectid", projectId.toString))
         params.add(new BasicNameValuePair("withdeactivated", false.toString))
-        val ppmsResponse = requestPPMS(url, true, params)
+        val ppmsResponse = requestPPMS(url, false, params)
         ppmsResponse match {
             case Some(projectUsersGetResponse) => {
-                Logger.debug("Get project users response status: " + projectUsersGetResponse.getStatusLine().toString())
-                val status = projectUsersGetResponse.getStatusLine.getStatusCode()
-                if(status < 200 || status >= 300) {
-                    Logger.debug("Get project returns unexpected status code:" + status)
-                    return Array[Option[JsValue]]()
-                }
-                val projectUsersGetEntity = projectUsersGetResponse.getEntity()
-                if(projectUsersGetEntity == null) {
-                    Logger.debug("Get project profile returns null")
-                    return Array[Option[JsValue]]()
-                }
-                val projectUsers = EntityUtils.toString(projectUsersGetEntity).split("\n")
-                Logger.debug("Project users:" + projectUsers)
-                // var users: Array[JsValue] = Array()
-                // projectUsers.foreach{ projectUser =>
-                //     getPPMSUser(url, pumakey, projectUser, getUserAction) match {
-                //         case Some(ppmsUser) => { users ++ ppmsUser }
-                //     }
-                // }
-                // var users = projectUsers.map ( projectUser => {
-                //     getPPMSUser(url, pumakey, projectUser, getUserAction) match {
-                //         case Some(ppmsUser) => ppmUser
-                //     }
-                // })
+                val projectUsers = projectUsersGetResponse.split("\n")
+                Logger.debug("Project users:" + projectUsersGetResponse)
                 var users = projectUsers.map { getPPMSUser(url, pumakey, _, getUserAction) }.filter(_ != None)
                 Logger.debug("Project user profiles:" + users) 
                 return users
