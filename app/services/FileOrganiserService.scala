@@ -14,9 +14,10 @@ import services._
 class FileOrganiserService(application: Application) extends Plugin {
 
   var storageRootDir: Option[String] = None
+  var spaceStorageMetadataField: String = ""
 
   lazy val spaces: SpaceService = DI.injector.getInstance(classOf[SpaceService])
-  
+  lazy val metadatas: MetadataService = DI.injector.getInstance(classOf[MetadataService])
 
   override def onStart() {
     Logger.debug("Starting file organiser plugin")
@@ -28,6 +29,7 @@ class FileOrganiserService(application: Application) extends Plugin {
 				storageRootDir = storageRootDir + fileSep
 			this.storageRootDir = Some(storageRootDir)
 		}
+    this.spaceStorageMetadataField = play.api.Play.configuration.getString("fileorganiser.storagemetadatafield").getOrElse("").trim
 	}	
   
 
@@ -77,9 +79,22 @@ class FileOrganiserService(application: Application) extends Plugin {
                 // should not happen but just in case
                 case None => ""
                 // found a space
-                case Some(aSpace) => fileItem.folder match {
-                  case Some(folder) => aSpace.name + fileSep + ds.name + folder.name.replace("/", fileSep) + fileSep
-                  case None => aSpace.name + fileSep + ds.name + fileSep
+                case Some(aSpace) => {
+                  var spaceStorageName = aSpace.name
+                  if (!this.spaceStorageMetadataField.equals("")) {
+                    metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
+                      Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
+                      if (metadata.content != None) {
+                        val spaceStorageInMetadata = (metadata.content \ this.spaceStorageMetadataField).as[String]
+                        if (spaceStorageInMetadata != None && !spaceStorageInMetadata.equals(""))  
+                          spaceStorageName = spaceStorageInMetadata
+                      }
+                    } 
+                  }
+                  fileItem.folder match {
+                    case Some(folder) => spaceStorageName + fileSep + ds.name + folder.name.replace("/", fileSep) + fileSep
+                    case None => spaceStorageName + fileSep + ds.name + fileSep
+                  }
                 } 
               }
             }
