@@ -36,45 +36,50 @@ class Spaces @Inject()(spaces: SpaceService,
     val nameOpt = (request.body \ "name").asOpt[String]
     val descOpt = (request.body \ "description").asOpt[String]
     // only admin create space
+    var isBadRequest = false
     if(play.api.Play.configuration.getBoolean("onlyAdminsCreateSpace").getOrElse(false)) {
       request.user match {
         case Some(identity) => {
           val requestUser = userService.findByIdentity(identity)
           if(requestUser == None || requestUser.get.status != UserStatus.Admin) {
-            BadRequest(toJson("Only admin can create space."))
+            Logger.debug("User: " + requestUser.get.email + " trying to access. not admin")
+            isBadRequest = true
           }
         }
         case None => { 
-          BadRequest(toJson("Missing user info")) 
+          isBadRequest = true
         }
       }
     }
-    (nameOpt, descOpt) match {
-      case (Some(name), Some(description)) => {
-        // TODO: add creator
-        val userId = request.user.get.id
-        val c = ProjectSpace(name = name, description = description, created = new Date(), creator = userId,
-          homePage = List.empty, logoURL = None, bannerURL = None, collectionCount = 0,
-          datasetCount = 0, userCount = 0, metadata = List.empty)
-        spaces.insert(c) match {
-          case Some(id) => {
-            appConfig.incrementCount('spaces, 1)
-            events.addObjectEvent(request.user, c.id, c.name, "create_space")
-            userService.findRoleByName("Admin") match {
-              case Some(realRole) => {
-                spaces.addUser(userId, realRole, UUID(id))
+    if (isBadRequest)
+      BadRequest(toJson("Only admins can create space."))
+    else
+      (nameOpt, descOpt) match {
+        case (Some(name), Some(description)) => {
+          // TODO: add creator
+          val userId = request.user.get.id
+          val c = ProjectSpace(name = name, description = description, created = new Date(), creator = userId,
+            homePage = List.empty, logoURL = None, bannerURL = None, collectionCount = 0,
+            datasetCount = 0, userCount = 0, metadata = List.empty)
+          spaces.insert(c) match {
+            case Some(id) => {
+              appConfig.incrementCount('spaces, 1)
+              events.addObjectEvent(request.user, c.id, c.name, "create_space")
+              userService.findRoleByName("Admin") match {
+                case Some(realRole) => {
+                  spaces.addUser(userId, realRole, UUID(id))
+                }
+                case None => Logger.debug("No admin role found")
+
               }
-              case None => Logger.info("No admin role found")
-
+              Ok(toJson(Map("id" -> id)))
             }
-            Ok(toJson(Map("id" -> id)))
+            case None => Ok(toJson(Map("status" -> "error")))
           }
-          case None => Ok(toJson(Map("status" -> "error")))
-        }
 
+        }
+        case (_, _) => BadRequest(toJson("Missing required parameters"))
       }
-      case (_, _) => BadRequest(toJson("Missing required parameters"))
-    }
   }
 
   def removeSpace(spaceId: UUID) = PermissionAction(Permission.DeleteSpace, Some(ResourceRef(ResourceRef.space, spaceId))) { implicit request =>
