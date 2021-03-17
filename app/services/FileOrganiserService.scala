@@ -74,7 +74,7 @@ class FileOrganiserService(application: Application) extends Plugin {
             // space
             ds.spaces match {
               // no folder means no copy
-              case Nil => ""
+              case Nil => None
               case _ => spaces.get(ds.spaces.head) match {
                 // should not happen but just in case
                 case None => ""
@@ -100,9 +100,7 @@ class FileOrganiserService(application: Application) extends Plugin {
             }
           }
           // no dataset provided
-          case None => {
-            ""
-          }
+          case None => None
         }
         Logger.debug(s"relativeFilePath=$relativeFilePath")
         if(!relativeFilePath.equals("")){        

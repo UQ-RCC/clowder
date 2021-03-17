@@ -700,24 +700,28 @@ object FileUtils {
         _.dump(DumpOfFile(fp, file.id.toString(), file.filename))
       }
 
-      current.plugin[FileOrganiserService].foreach {
-        _.copy(FileItem(fp, file.id.toString(), file.filename, dataset, folder)) match {
-          case Some(newPath) => {
-            files.get(file.id) match {
-              case Some(f) => {
-                Logger.debug("saving: " + newPath + " filename:" + f.filename)
-                val fixedfile = f.copy(filename=f.filename, contentType=f.contentType, loader=f.loader, loader_id=newPath, length=f.length, author=f.author)
-                files.save(fixedfile)
-                // only remove when newpath successlly stored in database
-                org.apache.commons.io.FileUtils.deleteQuietly(fp)
+      val sourcelist = play.api.Play.configuration.getStringList("filesystem.sourcepaths").map(_.toList).getOrElse(List.empty[String])
+      // do not move if in sourcepaths
+      if (! sourcelist.exists(s => fp.getAbsolutePath().startsWith(s))) {
+        current.plugin[FileOrganiserService].foreach {
+          _.copy(FileItem(fp, file.id.toString(), file.filename, dataset, folder)) match {
+            case Some(newPath) => {
+              files.get(file.id) match {
+                case Some(f) => {
+                  Logger.debug("saving: " + newPath + " filename:" + f.filename)
+                  val fixedfile = f.copy(filename=f.filename, contentType=f.contentType, loader=f.loader, loader_id=newPath, length=f.length, author=f.author)
+                  files.save(fixedfile)
+                  // only remove when newpath successlly stored in database
+                  org.apache.commons.io.FileUtils.deleteQuietly(fp)
+                }
               }
             }
+            case None => Logger.debug("No path returned")
           }
-          case None => Logger.debug("No path returned")
         }
-      }
-
-
+      } else 
+        Logger.debug("File " + fp.getAbsolutePath() + " in filesystem.sourcepaths. It is not touched by FileOrganiserService")
+      
       // for metadata files
       if (file.contentType.equals("application/xml") || file.contentType.equals("text/xml")) {
         val xmlToJSON = FilesUtils.readXMLgetJSON(fp)
