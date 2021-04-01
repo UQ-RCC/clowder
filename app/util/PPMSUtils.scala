@@ -20,15 +20,15 @@ object PPMSUtils {
     * Sometimes string returns contains \t which throws error
     */
     def requestPPMS(url: String, isApi2: Boolean, params: ArrayList[NameValuePair]): Option[String] = {
-        Logger.debug("\t===>   PPMS request:" + params + "url:" + (url + (if (isApi2) "api2/" else "pumapi/")) )
+        Logger.debug("\t===>   PPMS request:" + params + "url:" + (url + (if (isApi2) "API2/" else "pumapi/")) )
         val httpclient = new DefaultHttpClient()
         var respString: Option[String] = None
         if (url == None || url.trim.equals(""))
             return respString
-        var httpPost = new HttpPost(url + (if (isApi2) "api2/" else "pumapi/"))
+        var httpPost = new HttpPost(url + (if (isApi2) "API2/" else "pumapi/"))
         if (isApi2) {
             httpPost.setHeader("Content-Type", "application/x-www-form-urlencoded")
-            httpPost.setHeader("Cookie", "ASPSESSIONIDCWBTTABA=LDLFKLLDFKFIIPKBFDMPDDGK")
+            // httpPost.setHeader("Cookie", "ASPSESSIONIDCWBTTABA=LDLFKLLDFKFIIPKBFDMPDDGK")
         }
         try
         {
