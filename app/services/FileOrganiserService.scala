@@ -17,6 +17,7 @@ class FileOrganiserService(application: Application) extends Plugin {
   var spaceStorageMetadataField: String = ""
 
   lazy val spaces: SpaceService = DI.injector.getInstance(classOf[SpaceService])
+  lazy val folders: FolderService = DI.injector.getInstance(classOf[FolderService])
   lazy val metadatas: MetadataService = DI.injector.getInstance(classOf[MetadataService])
 
   override def onStart() {
@@ -57,7 +58,66 @@ class FileOrganiserService(application: Application) extends Plugin {
     }
     return tentativeFile
   }
+  
+  def getFolderPath(folder: Folder, pathSoFar: String): String = {
+    val fileSep = System.getProperty("file.separator")
+    val newPathSoFar = folder.name + fileSep + pathSoFar
+    if (folder.parentId == null || folder.parentType.equals("dataset")) {
+      return newPathSoFar
+    }
+    else {
+      folders.get(folder.parentId) match {
+        case Some(aFolder) => return getFolderPath(aFolder, newPathSoFar)
+        case None => return newPathSoFar // should not happen, maybe something wrong with database
+      }
+      
+    }
+  }
 
+  /**
+  * returns full relative path from the dataset to folders of a file item
+  */
+  def getRelativePath(fileItem: FileItem): String = {
+    val fileSep = System.getProperty("file.separator")
+    fileItem.dataset match {
+      // dataset
+      case Some(ds) => {
+        // space
+        ds.spaces match {
+          // no folder means no copy
+          case Nil => return ""
+          case _ => spaces.get(ds.spaces.head) match {
+            // should not happen but just in case
+            case None => return ""
+            // found a space
+            case Some(aSpace) => {
+              var spaceStorageName = aSpace.name
+              if (!this.spaceStorageMetadataField.equals("")) {
+                metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
+                  Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
+                  if (metadata.content != None) {
+                    val spaceStorageInMetadata = (metadata.content \ this.spaceStorageMetadataField).as[String]
+                    if (spaceStorageInMetadata != None && !spaceStorageInMetadata.equals(""))  
+                      spaceStorageName = spaceStorageInMetadata
+                  }
+                } 
+              }
+              fileItem.folder match {
+                case Some(folder) => {
+                  val allFoldersPath = getFolderPath(folder, "")
+                  Logger.debug("folderpath:" + allFoldersPath)
+                  return spaceStorageName + fileSep + ds.name + fileSep + allFoldersPath + fileSep
+                }
+                case None => return spaceStorageName + fileSep + ds.name + fileSep 
+              }
+            } 
+          }
+        }
+      }
+      // no dataset provided
+      case None => return ""
+    }
+  }
   /**
   * copy fileitem to storage root
   * This one does not delete the 
@@ -68,40 +128,7 @@ class FileOrganiserService(application: Application) extends Plugin {
       case Some(rootDir) => {
         val fileSep = System.getProperty("file.separator")
         // create filePath from spaces, dataset, directories
-        val relativeFilePath = fileItem.dataset match {
-          // dataset
-          case Some(ds) => {
-            // space
-            ds.spaces match {
-              // no folder means no copy
-              case Nil => None
-              case _ => spaces.get(ds.spaces.head) match {
-                // should not happen but just in case
-                case None => ""
-                // found a space
-                case Some(aSpace) => {
-                  var spaceStorageName = aSpace.name
-                  if (!this.spaceStorageMetadataField.equals("")) {
-                    metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
-                      Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
-                      if (metadata.content != None) {
-                        val spaceStorageInMetadata = (metadata.content \ this.spaceStorageMetadataField).as[String]
-                        if (spaceStorageInMetadata != None && !spaceStorageInMetadata.equals(""))  
-                          spaceStorageName = spaceStorageInMetadata
-                      }
-                    } 
-                  }
-                  fileItem.folder match {
-                    case Some(folder) => spaceStorageName + fileSep + ds.name + folder.name.replace("/", fileSep) + fileSep
-                    case None => spaceStorageName + fileSep + ds.name + fileSep
-                  }
-                } 
-              }
-            }
-          }
-          // no dataset provided
-          case None => None
-        }
+        val relativeFilePath = getRelativePath(fileItem)
         Logger.debug(s"relativeFilePath=$relativeFilePath")
         if(!relativeFilePath.equals("")){        
           // make sure the file copied to does not exists
