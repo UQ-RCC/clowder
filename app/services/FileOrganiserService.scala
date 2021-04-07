@@ -52,9 +52,9 @@ class FileOrganiserService(application: Application) extends Plugin {
     while (new File(tentativeFile).exists) {
       // no extension
       if(fileParts.size == 1)
-        tentativeFile = folderPath + fileName + java.time.LocalDateTime.now
+        tentativeFile = folderPath + fileName + java.time.LocalDateTime.now.toString()
       else 
-        tentativeFile = folderPath + fileParts.init + java.time.LocalDateTime.now + "." + fileParts.last
+        tentativeFile = folderPath + fileParts(0) + java.time.LocalDateTime.now.toString() + "." + fileParts.last
     }
     return tentativeFile
   }
@@ -132,7 +132,7 @@ class FileOrganiserService(application: Application) extends Plugin {
         Logger.debug(s"relativeFilePath=$relativeFilePath")
         if(!relativeFilePath.equals("")){        
           // make sure the file copied to does not exists
-          val destFile = makeFileName(fileItem.fileName, rootDir + relativeFilePath + fileSep)
+          val destFile = makeFileName(fileItem.fileName, rootDir + relativeFilePath)
           val copiedFile = new File(destFile)
           copiedFile.getParentFile().mkdirs()
           FileUtils.copyFile(fileItem.fileObject, copiedFile)
