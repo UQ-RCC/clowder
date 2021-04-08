@@ -52,9 +52,9 @@ class FileOrganiserService(application: Application) extends Plugin {
     while (new File(tentativeFile).exists) {
       // no extension
       if(fileParts.size == 1)
-        tentativeFile = folderPath + fileName + java.time.LocalDateTime.now.toString()
+        tentativeFile = folderPath + fileName + "_" + java.time.LocalDateTime.now.toString()
       else 
-        tentativeFile = folderPath + fileParts(0) + java.time.LocalDateTime.now.toString() + "." + fileParts.last
+        tentativeFile = folderPath + fileParts(0) + "_" + java.time.LocalDateTime.now.toString() + "." + fileParts.last
     }
     return tentativeFile
   }
