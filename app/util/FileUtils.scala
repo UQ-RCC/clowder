@@ -712,7 +712,9 @@ object FileUtils {
                   val fixedfile = f.copy(filename=f.filename, contentType=f.contentType, loader=f.loader, loader_id=newPath, length=f.length, author=f.author)
                   files.save(fixedfile)
                   // only remove when newpath successlly stored in database
-                  org.apache.commons.io.FileUtils.deleteQuietly(fp)
+                  Logger.debug("deleting: " + fp.getAbsolutePath())
+                  fp.delete()
+                  // org.apache.commons.io.FileUtils.deleteQuietly(fp)
                 }
               }
             }
