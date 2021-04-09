@@ -55,10 +55,10 @@ class PPMSSyncService (application: Application) extends Plugin {
   override def onStart() {
     Logger.debug("Starting ppms sync plugin")
     /*make sure username password is disabled, otherwise turn this off. reason: cannot create username password */
-    if ( play.Play.application().configuration().getBoolean("enableUsernamePassword") ) {
-      Logger.debug("Make sure to turn off usernamepassword to make this plugin works")
-      return
-    }
+    // if ( play.Play.application().configuration().getBoolean("enableUsernamePassword") ) {
+    //   Logger.debug("Make sure to turn off usernamepassword to make this plugin works")
+    //   return
+    // }
 
     var ppmsUrl = play.api.Play.configuration.getString("ppms.url").getOrElse("")
     if (!ppmsUrl.endsWith("/"))
