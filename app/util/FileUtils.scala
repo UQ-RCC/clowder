@@ -709,12 +709,14 @@ object FileUtils {
               files.get(file.id) match {
                 case Some(f) => {
                   Logger.debug("saving: " + newPath + " filename:" + f.filename)
+                  val oldPath = f.loader_id
                   val fixedfile = f.copy(filename=f.filename, contentType=f.contentType, loader=f.loader, loader_id=newPath, length=f.length, author=f.author)
                   files.save(fixedfile)
                   // only remove when newpath successlly stored in database
                   Logger.debug("deleting: " + fp.getAbsolutePath())
-                  fp.delete()
-                  // org.apache.commons.io.FileUtils.deleteQuietly(fp)
+                  org.apache.commons.io.FileUtils.deleteQuietly(fp)
+                  Logger.info("deleting: " + oldPath)
+                  org.apache.commons.io.FileUtils.deleteQuietly(new java.io.File(oldPath))
                 }
               }
             }
