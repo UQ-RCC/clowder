@@ -7,6 +7,7 @@ import javax.inject.Inject
 import api.Permission
 import api.Permission._
 import models._
+import play.api.Play._
 import play.api.{ Logger, Play }
 import play.api.data.Forms._
 import play.api.data.{ Form, Forms }
@@ -413,43 +414,59 @@ class Spaces @Inject() (spaces: SpaceService, users: UserService, events: EventS
           case Some(x) => {
             x(0) match {
               case ("Create") => {
-                spaceForm.bindFromRequest.fold(
-                  errors => BadRequest(views.html.spaces.newSpace(errors)),
-                  formData => {
-                    if (Permission.checkPermission(user, Permission.CreateSpace)) {
-                      Logger.debug("Creating space " + formData.name)
-                      val newSpace = ProjectSpace(name = formData.name, description = formData.description,
-                        created = new Date, creator = userId, homePage = formData.homePage,
-                        logoURL = formData.logoURL, bannerURL = formData.bannerURL,
-                        collectionCount = 0, datasetCount = 0, userCount = 0, metadata = List.empty,
-                        resourceTimeToLive = formData.resourceTimeToLive * 60 * 60 * 1000L, isTimeToLiveEnabled = formData.isTimeToLiveEnabled,
-                        status = formData.access,
-                        affiliatedSpaces = formData.affSpace)
-
-                      // insert space
-                      spaces.insert(newSpace)
-                      val option_user = users.findByIdentity(identity)
-                      events.addObjectEvent(option_user, newSpace.id, newSpace.name, "create_space")
-                      val role = Role.Admin
-                      spaces.addUser(userId, role, newSpace.id)
-                      //TODO - Put Spaces in Elastic Search?
-                      // index collection
-                      // val dateFormat = new SimpleDateFormat("dd/MM/yyyy")
-                      //current.plugin[ElasticsearchPlugin].foreach{_.index("data", "collection", collection.id,
-                      // Notify admins a new space is created
-                      //  List(("name",collection.name), ("description", collection.description), ("created",dateFormat.format(new Date()))))}
-                      //current.plugin[AdminsNotifierPlugin].foreach{_.sendAdminsNotification(Utils.baseUrl(request), "Space","added",space.id.toString,space.name)}
-                      // redirect to space page
-
-                      //Add default metadata to metadata for the space.
-                      val clowder_metadata = metadatas.getDefinitions()
-                      clowder_metadata.foreach { md =>
-                        val new_metadata = MetadataDefinition(spaceId = Some(newSpace.id), json = md.json)
-                        metadatas.addDefinition(new_metadata)
+                var isBadRequest = false
+                // check whether onlyAdminsCreateSpace is on
+                if(play.api.Play.configuration.getBoolean("onlyAdminsCreateSpace").getOrElse(false)) {
+                  users.findByIdentity(identity) match {
+                    case Some(requestUser) => {
+                      if (requestUser.status != UserStatus.Admin) {
+                        Logger.debug("User: " + requestUser.email + " is trying to create. not admin")
+                        isBadRequest = true
                       }
-                      Redirect(routes.Spaces.getSpace(newSpace.id))
-                    } else { BadRequest("Unauthorized.") }
-                  })
+                    }
+                    case None => isBadRequest = true
+                  }
+                }
+                if (isBadRequest)
+                   BadRequest("Only admins can create space")
+                else 
+                  spaceForm.bindFromRequest.fold(
+                    errors => BadRequest(views.html.spaces.newSpace(errors)),
+                    formData => {
+                      if (Permission.checkPermission(user, Permission.CreateSpace)) {
+                        Logger.debug("Creating space " + formData.name)
+                        val newSpace = ProjectSpace(name = formData.name, description = formData.description,
+                          created = new Date, creator = userId, homePage = formData.homePage,
+                          logoURL = formData.logoURL, bannerURL = formData.bannerURL,
+                          collectionCount = 0, datasetCount = 0, userCount = 0, metadata = List.empty,
+                          resourceTimeToLive = formData.resourceTimeToLive * 60 * 60 * 1000L, isTimeToLiveEnabled = formData.isTimeToLiveEnabled,
+                          status = formData.access,
+                          affiliatedSpaces = formData.affSpace)
+
+                        // insert space
+                        spaces.insert(newSpace)
+                        val option_user = users.findByIdentity(identity)
+                        events.addObjectEvent(option_user, newSpace.id, newSpace.name, "create_space")
+                        val role = Role.Admin
+                        spaces.addUser(userId, role, newSpace.id)
+                        //TODO - Put Spaces in Elastic Search?
+                        // index collection
+                        // val dateFormat = new SimpleDateFormat("dd/MM/yyyy")
+                        //current.plugin[ElasticsearchPlugin].foreach{_.index("data", "collection", collection.id,
+                        // Notify admins a new space is created
+                        //  List(("name",collection.name), ("description", collection.description), ("created",dateFormat.format(new Date()))))}
+                        //current.plugin[AdminsNotifierPlugin].foreach{_.sendAdminsNotification(Utils.baseUrl(request), "Space","added",space.id.toString,space.name)}
+                        // redirect to space page
+
+                        //Add default metadata to metadata for the space.
+                        val clowder_metadata = metadatas.getDefinitions()
+                        clowder_metadata.foreach { md =>
+                          val new_metadata = MetadataDefinition(spaceId = Some(newSpace.id), json = md.json)
+                          metadatas.addDefinition(new_metadata)
+                        }
+                        Redirect(routes.Spaces.getSpace(newSpace.id))
+                      } else { BadRequest("Unauthorized.") }
+                    })
               }
               case ("Update") => {
                 spaceForm.bindFromRequest.fold(
