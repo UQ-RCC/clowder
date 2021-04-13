@@ -375,7 +375,7 @@ object FileUtils {
     Future {
       try {
         saveFile(file, f.ref.file, originalZipFile, clowderurl, apiKey, Some(user)).foreach { fixedfile =>
-          processFileBytes(fixedfile, f.ref.file, dataset)
+          processFileBytes(fixedfile, f.ref.file, dataset, folder)
           files.setStatus(fixedfile.id, FileStatus.UPLOADED)
           sinkService.logFileUploadEvent(fixedfile, dataset, Option(user))
           processFile(fixedfile, clowderurl, index, flagsFromPrevious, showPreviews, dataset, runExtractors, apiKey)
@@ -431,7 +431,7 @@ object FileUtils {
     val fileExecutionContext: ExecutionContext = Akka.system().dispatchers.lookup("akka.actor.contexts.file-processing")
     Future {
       saveURL(file, url, clowderurl, apiKey, Some(user)).foreach { fixedfile =>
-        processFileBytes(fixedfile, new java.io.File(path), fileds)
+        processFileBytes(fixedfile, new java.io.File(path), fileds, folder)
         files.setStatus(fixedfile.id, FileStatus.UPLOADED)
         processFile(fixedfile, clowderurl, index, flagsFromPrevious, showPreviews, fileds, runExtractors, apiKey)
         processDataset(file, fileds, folder, clowderurl, user, index, runExtractors, apiKey)
@@ -490,7 +490,7 @@ object FileUtils {
       val fileExecutionContext: ExecutionContext = Akka.system().dispatchers.lookup("akka.actor.contexts.file-processing")
       Future {
         savePath(file, path).foreach { fixedfile =>
-          processFileBytes(fixedfile, new java.io.File(path), fileds)
+          processFileBytes(fixedfile, new java.io.File(path), fileds, folder)
           files.setStatus(fixedfile.id, FileStatus.UPLOADED)
           processFile(fixedfile, clowderurl, index, flagsFromPrevious, showPreviews, fileds, runExtractors, apiKey)
           processDataset(file, fileds, folder, clowderurl, user, index, runExtractors, apiKey)
@@ -693,13 +693,39 @@ object FileUtils {
    * Process the bytes on disk, send them as xml/rdf and store a copy. This will work with the original
    * data after it has been send to Clowdders storage area.
    */
-  private def processFileBytes(file: File, fp: java.io.File, dataset: Option[Dataset]): Unit = {
+  private def processFileBytes(file: File, fp: java.io.File, dataset: Option[Dataset], folder: Option[Folder]=None): Unit = {
     if (!file.isIntermediate) {
       // store the file
       current.plugin[FileDumpService].foreach {
         _.dump(DumpOfFile(fp, file.id.toString(), file.filename))
       }
 
+      val sourcelist = play.api.Play.configuration.getStringList("filesystem.sourcepaths").map(_.toList).getOrElse(List.empty[String])
+      // do not move if in sourcepaths
+      if (! sourcelist.exists(s => fp.getAbsolutePath().startsWith(s))) {
+        current.plugin[FileOrganiserService].foreach {
+          _.copy(FileItem(fp, file.id.toString(), file.filename, dataset, folder)) match {
+            case Some(newPath) => {
+              files.get(file.id) match {
+                case Some(f) => {
+                  Logger.debug("saving: " + newPath + " filename:" + f.filename)
+                  val oldPath = f.loader_id
+                  val fixedfile = f.copy(filename=f.filename, contentType=f.contentType, loader=f.loader, loader_id=newPath, length=f.length, author=f.author)
+                  files.save(fixedfile)
+                  // only remove when newpath successlly stored in database
+                  Logger.debug("deleting: " + fp.getAbsolutePath())
+                  org.apache.commons.io.FileUtils.deleteQuietly(fp)
+                  Logger.info("deleting: " + oldPath)
+                  org.apache.commons.io.FileUtils.deleteQuietly(new java.io.File(oldPath))
+                }
+              }
+            }
+            case None => Logger.debug("No path returned")
+          }
+        }
+      } else 
+        Logger.debug("File " + fp.getAbsolutePath() + " in filesystem.sourcepaths. It is not touched by FileOrganiserService")
+      
       // for metadata files
       if (file.contentType.equals("application/xml") || file.contentType.equals("text/xml")) {
         val xmlToJSON = FilesUtils.readXMLgetJSON(fp)
