@@ -177,11 +177,15 @@ class PPMSSyncService (application: Application) extends Plugin {
     val projType = (projectInfo \ "ProjectType").as[String]
     val projGroup = (projectInfo \ "ProjectGroup").as[String]
     val projDesc = (projectInfo \ "Descr").as[String]
-    val rawDataStorage = (extraProfile \ ppmsStorageField).as[String]
+    var rawDataStorage = (extraProfile \ ppmsStorageField).as[String]
     Logger.debug(">>>Syncing project: " + projName + " id=" + projId.toString)
     if (rawDataStorage == None || rawDataStorage.trim().isEmpty()) {
       Logger.debug("Project " + projName + " has no storage defined. Ignore!!!")
       return
+    }
+    rawDataStorage = rawDataStorage.trim()
+    if(rawDataStorage.contains("-")) {
+      rawDataStorage = rawDataStorage.split("-").last
     }
 
     val desc = 
