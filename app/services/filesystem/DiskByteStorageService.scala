@@ -84,9 +84,18 @@ class DiskByteStorageService extends ByteStorageService {
    * Delete actualy bytes from disk
    */
   def delete(path: String, prefix: String): Boolean = {
+    // Hoang Nguyen: added for fileorgaiser
+    val fileSep = System.getProperty("file.separator")
+    var storageRootDir = Play.current.configuration.getString("storageroot.dir").getOrElse("")
+		if(!storageRootDir.equals("")){
+			if(!storageRootDir.endsWith(fileSep))
+				storageRootDir = storageRootDir + fileSep
+		}
     Play.current.configuration.getString("clowder.diskStorage.path") match {
       case Some(root) => {
-        if (path.startsWith(makePath(root, prefix, ""))) {
+        if (path.startsWith(makePath(root, prefix, "")) || 
+          (!storageRootDir.equals("") && path.startsWith(makePath(storageRootDir, "", "")) ) ) 
+        {
           // delete the bytes
           Logger.debug("Removing file " + path)
           var file = new File(path)
