@@ -6,7 +6,7 @@ import java.io.File
 import org.apache.commons.io.FileUtils
 import models._
 import services._
-
+import play.api.libs.json._
 /**
  * File organiser service.
  *
@@ -17,6 +17,7 @@ class FileOrganiserService(application: Application) extends Plugin {
   var spaceStorageMetadataField: String = ""
 
   lazy val spaces: SpaceService = DI.injector.getInstance(classOf[SpaceService])
+  lazy val datasets: DatasetService = DI.injector.getInstance(classOf[DatasetService])
   lazy val folders: FolderService = DI.injector.getInstance(classOf[FolderService])
   lazy val metadatas: MetadataService = DI.injector.getInstance(classOf[MetadataService])
 
@@ -82,6 +83,10 @@ class FileOrganiserService(application: Application) extends Plugin {
     fileItem.dataset match {
       // dataset
       case Some(ds) => {
+        // get dataset usermetadata
+        val userMetadataJsonObject: JsValue = Json.parse(datasets.getUserMetadataJSON(ds.id))
+        val relativePath = (userMetadataJsonObject \ "relativepath").asOpt[String]
+        Logger.debug("Relativepath: "+ relativePath)
         // space
         ds.spaces match {
           // no folder means no copy
@@ -106,9 +111,18 @@ class FileOrganiserService(application: Application) extends Plugin {
                 case Some(folder) => {
                   val allFoldersPath = getFolderPath(folder, "")
                   Logger.debug("folderpath:" + allFoldersPath)
-                  return spaceStorageName + fileSep + ds.name + fileSep + allFoldersPath + fileSep
+                  // return based on relativePath
+                  relativePath match {
+                    case None => return spaceStorageName + fileSep + ds.name + fileSep + allFoldersPath + fileSep
+                    case Some(relativePathStr) => return spaceStorageName + fileSep + relativePathStr + fileSep + ds.name + fileSep + allFoldersPath + fileSep
+                  }
                 }
-                case None => return spaceStorageName + fileSep + ds.name + fileSep 
+                case None => {
+                  relativePath match {
+                    case None => return spaceStorageName + fileSep + ds.name + fileSep
+                    case Some(relativePathStr) => return spaceStorageName + fileSep + relativePathStr + fileSep + ds.name + fileSep
+                  }
+                } 
               }
             } 
           }
