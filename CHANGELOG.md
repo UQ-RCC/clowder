@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Fixed
+- Added index for comments, will speed up index creation
+
+## 1.17.0 - 2021-04-29
+
+### Fixed
+- Close channel after submitting events to RabbitMQMessageService.
+
+### Added
+- Endpoint `/api/datasets/createfrombag` to ingest datasets in BagIt format. Includes basic dataset metadata, files,
+  folders and technical metadata. Downloading datasets now includes extra Datacite and Clowder metadata.
+- Endpoint `/api/files/bulkRemove` to delete multiple files in one call. [#12](https://github.com/clowder-framework/clowder/issues/12)
+- Log an event each time that a user archives or unarchives a file.
+- Persist name of message bus response queue, preventing status messages from getting lost after a reboot.
+
+### Changed
+- Updated Sphinx dependencies due to security and changes in required packages.
+
+## 1.16.0 - 2021-03-31
+
+### Fixed
+- Remove the RabbitMQ plugin from the docker version of clowder
+
+### Added
+- Added a `sort` and `order` parameter to `/api/search` endpoint that supports date and numeric field sorting. 
+  If only order is specified, created date is used. String fields are not currently supported.
+- Added a new `/api/deleteindex` admin endpoint that will queue an action to delete an Elasticsearch index (usually prior to a reindex).
+- JMeter testing suite.
+
+### Changed
+- Consolidated field names sent by the EventSinkService to maximize reuse.
+- Add status column to files report to indicate if files are ARCHIVED, etc.
+- Reworked auto-archival configuration options to make their meanings more clear.
+
+## 1.15.1 - 2021-03-12
+
+### Fixed
+- Several views were throwing errors trying to access a None value in `EventSinkService` when a user was not logged in. 
+  Replaced `get()` with `getOrElse()`.
+- Consolidated field names sent by the EventSinkService to maximize reuse.
+- Changed `EventSinkService` logging to debug to minimize chatter.
+- Don't automatically create eventsink queue and bind it to eventsink exchange. Let clients do that so that we don't 
+  have a queue for the eventsink filling up if there are no consumers.
+
 ## 1.15.0 - 2021-03-03
 
 ### Added
