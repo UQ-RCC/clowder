@@ -41,10 +41,10 @@ FROM java:jre-alpine
 RUN apk add --no-cache bash curl
 
 # environemnt variables
-ARG BRANCH="unknown"
-ARG VERSION="unknown"
-ARG BUILDNUMBER="unknown"
-ARG GITSHA1="unknown"
+ARG BRANCH
+ARG VERSION
+ARG BUILDNUMBER
+ARG GITSHA1
 ENV BRANCH=${BRANCH} \
     VERSION=${VERSION} \
     BUILDNUMBER=${BUILDNUMBER} \
