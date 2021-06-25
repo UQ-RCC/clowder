@@ -3,10 +3,10 @@
 # ----------------------------------------------------------------------
 FROM java:jdk-alpine as clowder-build
 
-ARG BRANCH="unknown"
-ARG VERSION="unknown"
-ARG BUILDNUMBER="unknown"
-ARG GITSHA1="unknown"
+ARG BRANCH
+ARG VERSION
+ARG BUILDNUMBER
+ARG GITSHA1
 
 WORKDIR /src
 
