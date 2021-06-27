@@ -16,15 +16,15 @@ name: Docker
 on:
   push:
     branches:
-      - master
-      - develop
+      - rcc
+    tags:
+      - pitschi*
 
-  pull_request:
 
 # Certain actions will only run when this is the master repo.
 env:
-  MASTER_REPO: clowder-framework/clowder
-  DOCKERHUB_ORG: clowder
+  MASTER_REPO: UQ-RCC/clowder
+  DOCKERHUB_ORG: uqrcc
 
 jobs:
   docker:
