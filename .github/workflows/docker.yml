@@ -16,7 +16,7 @@ name: Docker
 on:
   push:
     branches:
-      - rcc
+      - pitschi
     tags:
       - pitschi*
 
