@@ -82,49 +82,74 @@ class Spaces @Inject()(spaces: SpaceService,
   def get(id: UUID) = PermissionAction(Permission.ViewSpace, Some(ResourceRef(ResourceRef.space, id))) { implicit request =>
     spaces.get(id) match {
       case Some(space) => Ok(spaceToJson(Utils.decodeSpaceElements(space)))
-      case None => BadRequest("Space not found")
+      case None => NotFound("Space not found")
     }
   }
 
-  def list(title: Option[String], date: Option[String], limit: Int) = UserAction(needActive=false) { implicit request =>
-    Ok(toJson(listSpaces(title, date, limit, Set[Permission](Permission.ViewSpace), false, request.user, request.user.fold(false)(_.superAdminMode), true).map(spaceToJson)))
+  def list(when: Option[String], title: Option[String], date: Option[String], limit: Int) = UserAction(needActive=false) { implicit request =>
+    Ok(toJson(listSpaces(when, title, date, limit, Set[Permission](Permission.ViewSpace), false, request.user, request.user.fold(false)(_.superAdminMode), true).map(spaceToJson)))
   }
 
-  def listCanEdit(title: Option[String], date: Option[String], limit: Int) = UserAction(needActive=true) { implicit request =>
-    Ok(toJson(listSpaces(title, date, limit, Set[Permission](Permission.AddResourceToSpace, Permission.EditSpace), false, request.user, request.user.fold(false)(_.superAdminMode), true).map(spaceToJson)))
+  def listCanEdit(when: Option[String], title: Option[String], date: Option[String], limit: Int) = UserAction(needActive=true) { implicit request =>
+    Ok(toJson(listSpaces(when, title, date, limit, Set[Permission](Permission.AddResourceToSpace, Permission.EditSpace), false, request.user, request.user.fold(false)(_.superAdminMode), true).map(spaceToJson)))
   }
 
-  def listCanEditNotAlreadyIn(collectionId : UUID, title: Option[String], date: Option[String], limit: Int) = UserAction(needActive=true ){ implicit request =>
-    Ok(toJson(listSpaces(title, date, limit, Set[Permission](Permission.AddResourceToSpace, Permission.EditSpace), false, request.user, request.user.fold(false)(_.superAdminMode), true).map(spaceToJson)))
+  def listCanEditNotAlreadyIn(when: Option[String], collectionId : UUID, title: Option[String], date: Option[String], limit: Int) = UserAction(needActive=true ){ implicit request =>
+    Ok(toJson(listSpaces(when, title, date, limit, Set[Permission](Permission.AddResourceToSpace, Permission.EditSpace), false, request.user, request.user.fold(false)(_.superAdminMode), true).map(spaceToJson)))
   }
 
   /**
    * Returns list of collections based on parameters and permissions.
    * TODO this needs to be cleaned up when do permissions for adding to a resource
    */
-  private def listSpaces(title: Option[String], date: Option[String], limit: Int, permission: Set[Permission], mine: Boolean, user: Option[User], superAdmin: Boolean, showPublic: Boolean, onlyTrial: Boolean = false) : List[ProjectSpace] = {
+  private def listSpaces(when: Option[String], title: Option[String], date: Option[String], limit: Int, permission: Set[Permission], mine: Boolean, user: Option[User], superAdmin: Boolean, showPublic: Boolean, onlyTrial: Boolean = false) : List[ProjectSpace] = {
     if (mine && user.isEmpty) return List.empty[ProjectSpace]
 
-    (title, date) match {
-      case (Some(t), Some(d)) => {
+    (when, title, date) match {
+      case (Some(w), Some(t), Some(d)) => {
         if (mine)
-          spaces.listUser(d, true, limit, t, user, superAdmin, user.get)
+          spaces.listUser(d, nextPage=(w=="a"), limit, t, user, superAdmin, user.get)
         else
-          spaces.listAccess(d, true, limit, t, permission, user, superAdmin, showPublic, showOnlyShared = false)
+          spaces.listAccess(d, nextPage=(w=="a"), limit, t, permission, user, superAdmin, showPublic, showOnlyShared = false)
       }
-      case (Some(t), None) => {
+      case (Some(w), Some(t), None) => {
         if (mine)
           spaces.listUser(limit, t, user, superAdmin, user.get)
         else
           spaces.listAccess(limit, t, permission, user, superAdmin, showPublic, showOnlyShared = false)
       }
-      case (None, Some(d)) => {
+      case (Some(w), None, Some(d)) => {
+        if (mine)
+          spaces.listUser(d, nextPage=(w=="a"), limit, user, superAdmin, user.get)
+        else
+          spaces.listAccess(d, nextPage=(w=="a"), limit, permission, user, superAdmin, showPublic, onlyTrial, showOnlyShared = false)
+      }
+      case (Some(w), None, None) => {
+        if (mine)
+          spaces.listUser(limit, user, superAdmin, user.get)
+        else
+          spaces.listAccess(limit, permission, user, superAdmin, showPublic, onlyTrial, showOnlyShared = false)
+      }
+      // default when to be "after" if not present in parameters. i.e. nextPage=true
+      case (None, Some(t), Some(d)) => {
+        if (mine)
+          spaces.listUser(d, true, limit, t, user, superAdmin, user.get)
+        else
+          spaces.listAccess(d, true, limit, t, permission, user, superAdmin, showPublic, showOnlyShared = false)
+      }
+      case (None, Some(t), None) => {
+        if (mine)
+          spaces.listUser(limit, t, user, superAdmin, user.get)
+        else
+          spaces.listAccess(limit, t, permission, user, superAdmin, showPublic, showOnlyShared = false)
+      }
+      case (None, None, Some(d)) => {
         if (mine)
           spaces.listUser(d, true, limit, user, superAdmin, user.get)
         else
           spaces.listAccess(d, true, limit, permission, user, superAdmin, showPublic, onlyTrial, showOnlyShared = false)
       }
-      case (None, None) => {
+      case (None, None, None) => {
         if (mine)
           spaces.listUser(limit, user, superAdmin, user.get)
         else
@@ -210,7 +235,7 @@ class Spaces @Inject()(spaces: SpaceService,
           case (_, _) => NotFound
         }
       }
-      case None => BadRequest("User not supplied")
+      case None => NotFound("User not supplied")
     }
   }
 
@@ -303,14 +328,26 @@ class Spaces @Inject()(spaces: SpaceService,
 
 
   def listDatasets(spaceId: UUID, limit: Integer) = PermissionAction(Permission.ViewSpace, Some(ResourceRef(ResourceRef.space, spaceId))) { implicit request =>
-    val datasetList = datasets.listSpace(limit, spaceId.stringify)
-    Ok(toJson(datasetList))
+    spaces.get(spaceId) match {
+      case Some(space) =>{
+        val datasetList = datasets.listSpace(limit, spaceId.stringify)
+        Ok(toJson(datasetList))
+      }
+      case None => NotFound(s"Space $spaceId not found.")
+    }
+
   }
 
 
   def listCollections(spaceId: UUID, limit: Integer) = PermissionAction(Permission.ViewSpace, Some(ResourceRef(ResourceRef.space, spaceId))) { implicit request =>
-    val collectionList = collectionService.listSpace(limit, spaceId.stringify)
-    Ok(toJson(collectionList))
+    spaces.get(spaceId) match {
+      case Some(space) =>  {
+        val collectionList = collectionService.listSpace(limit, spaceId.stringify)
+        Ok(toJson(collectionList))
+      }
+      case None => NotFound(s"Space $spaceId not found.")
+    }
+
   }
 
 
@@ -535,7 +572,7 @@ class Spaces @Inject()(spaces: SpaceService,
 
               Ok(Json.obj("status" -> "success"))
             }
-            case None => BadRequest(toJson("Errors: Could not find space"))
+            case None => NotFound(toJson("Errors: Could not find space"))
           }
         }
         case e: JsError => {
@@ -656,7 +693,7 @@ class Spaces @Inject()(spaces: SpaceService,
             }
             Ok(Json.obj("status" -> "success"))
           }
-          case None => InternalServerError("Request user not found")
+          case None => NotFound("Request user not found")
         }
       }
       case None => NotFound("Space not found")
@@ -680,7 +717,7 @@ class Spaces @Inject()(spaces: SpaceService,
             }
             Ok(Json.obj("status" -> "success"))
           }
-          case None => InternalServerError("Request user not found")
+          case None => NotFound("Request user not found")
         }
       }
       case None => NotFound("Space not found")
