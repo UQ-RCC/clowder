@@ -196,72 +196,71 @@ class PPMSSyncService (application: Application) extends Plugin {
     Desc:%s""" format(projId, rawDataStorage, projType, projGroup, projDesc)
 
     Logger.debug("Syncing project: name =" + projName + " projectId=" + projId + " rawdata=" + rawDataStorage)
-    val spaceList = spaces.listUser(0, projName, None, true, getFirstAdmin.get)
-    spaceList match {
-      case Nil => {
-        Logger.debug(">>>No space exists, create a new one")
-        //create new space
-        var newSpace = ProjectSpace(name = projName, description = desc,
-                                    created = new Date, creator = getFirstAdmin.get.id, 
-                                    homePage = List.empty, logoURL = None, bannerURL = None,
-                                    collectionCount = 0, datasetCount = 0, userCount = 0, 
-                                    metadata = List.empty,
-                                    resourceTimeToLive = SpaceConfig.getTimeToLive(), 
-                                    isTimeToLiveEnabled = SpaceConfig.getIsTimeToLiveEnabled(),
-                                    status = SpaceStatus.PRIVATE.toString,
-                                    affiliatedSpaces = List.empty)
-        val addedSpace = spaces.insert(newSpace)
-        if(addedSpace == None) {
-          Logger.error("Failed to add space")
-          return
-        }
-        val addedSpaceUUID = UUIDConversions.stringToUUID(addedSpace.get)
-        events.addObjectEvent(getFirstAdmin, addedSpaceUUID, newSpace.name, "create_space")
-        // metadata
-        val creator = SyncAgent(id=UUID.generate, serverUrl=Some(new URL(ppmsUrl)) )
-        val spaceMetadata : JsValue = JsObject(
-          Seq(
-            "projType"    -> JsString(projType),
-            "projGroup"   -> JsString(projGroup),
-            "projStorage" -> JsString(rawDataStorage),
-            "projId"      -> JsNumber(projId)
-          )
-        )
-        // newSpace.metadata = List(Metadata(content=spaceMetadata, creator=creator, attachedTo=ResourceRef(ResourceRef.space, newSpace.id)))
-        // spaces.update(newSpace)
-        val newSpaceMetadata = Metadata(content=spaceMetadata, creator=creator, attachedTo=ResourceRef(ResourceRef.space, addedSpaceUUID))
-        metadatas.addMetadata(newSpaceMetadata) 
-        // add admins first
-        users.getAdmins.foreach ( admin => spaces.addUser(admin.id , Role.Admin, newSpace.id) )
-        // go though users in this project 
-        syncUsersInproject(projId, newSpace)
-        // metadata
-        val clowder_metadata = metadatas.getDefinitions()
-        clowder_metadata.foreach { md =>
-          val new_metadata = MetadataDefinition(spaceId = Some(newSpace.id), json = md.json)
-          metadatas.addDefinition(new_metadata)
-        }
+    // allSpaces: List[ProjectSpace]
+    val allSpaces = spaces.list()
+    var spaceList = allSpaces.filter(_space => _space.name == projName)
+    if (spaceList.length == 0) {
+      Logger.debug(">>>No space exists, create a new one")
+      //create new space
+      var newSpace = ProjectSpace(name = projName, description = desc,
+                                  created = new Date, creator = getFirstAdmin.get.id, 
+                                  homePage = List.empty, logoURL = None, bannerURL = None,
+                                  collectionCount = 0, datasetCount = 0, userCount = 0, 
+                                  metadata = List.empty,
+                                  resourceTimeToLive = SpaceConfig.getTimeToLive(), 
+                                  isTimeToLiveEnabled = SpaceConfig.getIsTimeToLiveEnabled(),
+                                  status = SpaceStatus.PRIVATE.toString,
+                                  affiliatedSpaces = List.empty)
+      val addedSpace = spaces.insert(newSpace)
+      if(addedSpace == None) {
+        Logger.error("Failed to add space")
+        return
       }
-      case _ => {
-        Logger.debug("Space exists, update it")
-        // go through the metadata of each space to make sure the collection is there
-        spaceList.foreach{aSpace =>
-          metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
-            Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
-            if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
-              syncUsersInproject(projId, aSpace)
-            }
-          } 
-          // aSpace.metadata.foreach{metadata =>
-          //   Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
-          //   if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
-          //     // now update the space
-          //     syncUsersInproject(projId, aSpace)
-          //   }
-          // } // end metadata for each
-        } // end spaces for each
-      } // end space exists 
-    }
+      val addedSpaceUUID = UUIDConversions.stringToUUID(addedSpace.get)
+      events.addObjectEvent(getFirstAdmin, addedSpaceUUID, newSpace.name, "create_space")
+      // metadata
+      val creator = SyncAgent(id=UUID.generate, serverUrl=Some(new URL(ppmsUrl)) )
+      val spaceMetadata : JsValue = JsObject(
+        Seq(
+          "projType"    -> JsString(projType),
+          "projGroup"   -> JsString(projGroup),
+          "projStorage" -> JsString(rawDataStorage),
+          "projId"      -> JsNumber(projId)
+        )
+      )
+      // newSpace.metadata = List(Metadata(content=spaceMetadata, creator=creator, attachedTo=ResourceRef(ResourceRef.space, newSpace.id)))
+      // spaces.update(newSpace)
+      val newSpaceMetadata = Metadata(content=spaceMetadata, creator=creator, attachedTo=ResourceRef(ResourceRef.space, addedSpaceUUID))
+      metadatas.addMetadata(newSpaceMetadata) 
+      // add admins first
+      users.getAdmins.foreach ( admin => spaces.addUser(admin.id , Role.Admin, newSpace.id) )
+      // go though users in this project 
+      syncUsersInproject(projId, newSpace)
+      // metadata
+      val clowder_metadata = metadatas.getDefinitions()
+      clowder_metadata.foreach { md =>
+        val new_metadata = MetadataDefinition(spaceId = Some(newSpace.id), json = md.json)
+        metadatas.addDefinition(new_metadata)
+      }
+    } else {
+      Logger.debug("Space exists, update it")
+      // go through the metadata of each space to make sure the collection is there
+      spaceList.foreach{aSpace =>
+        metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
+          Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
+          if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
+            syncUsersInproject(projId, aSpace)
+          }
+        } 
+        // aSpace.metadata.foreach{metadata =>
+        //   Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
+        //   if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
+        //     // now update the space
+        //     syncUsersInproject(projId, aSpace)
+        //   }
+        // } // end metadata for each
+      } // end spaces for each
+    } // end space exists 
   }
 
   /**
