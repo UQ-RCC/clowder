@@ -66,7 +66,7 @@ class CILogonProvider(application: Application) extends OAuth2Provider(applicati
               }
             }
             case (Some(_), None) => throw new AuthenticationException()
-            case (None, _) => Logger.error("[securesocial] No check needed for groups")
+            case (None, _) => Logger.debug("[securesocial] No check needed for groups")
           }
           if( mergeToExistUser ) {
             users.findByEmail( email.get ) match {
