@@ -40,7 +40,9 @@ RUN rm -rf target/universal/clowder-*.zip clowder clowder-* \
 FROM openjdk:8-jdk
 
 # add bash
-RUN apk add --no-cache bash curl
+RUN apt-get update 
+RUN apt-get install -y bash curl
+#RUN apk add --no-cache bash curl
 
 # environemnt variables
 ARG BRANCH
