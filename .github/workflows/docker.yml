@@ -101,7 +101,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           context: ${{ matrix.FOLDER }}
-          tags: "${{ github.event.release.tag_name }}"
+          tags: ${{ env.GITHUB_BRANCH }}
           buildargs: BRANCH,VERSION,BUILDNUMBER,GITSHA1
           no_push: true
 
@@ -137,7 +137,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
           context: ${{ matrix.FOLDER }}
-          tags: "${{ github.event.release.tag_name }}"
+          tags: ${{ env.GITHUB_BRANCH }}
           buildargs: BRANCH,VERSION,BUILDNUMBER,GITSHA1
 
       # this will update the README of the dockerhub repo
