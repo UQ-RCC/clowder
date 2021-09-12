@@ -136,7 +136,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
           context: ${{ matrix.FOLDER }}
-          tags: "${{ env.CLOWDER_VERSION }}"
+          tags: "${{ github.event.release.tag_name }}"
           buildargs: BRANCH,VERSION,BUILDNUMBER,GITSHA1
 
       # this will update the README of the dockerhub repo
