@@ -100,7 +100,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           context: ${{ matrix.FOLDER }}
-          tags: "${{ env.TAGS }}"
+          tags: "${{ github.event.release.tag_name }}"
           buildargs: BRANCH,VERSION,BUILDNUMBER,GITSHA1
           no_push: true
 
