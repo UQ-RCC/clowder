@@ -81,8 +81,8 @@ jobs:
           elif [ "$BRANCH" == "develop" ]; then
             echo "CLOWDER_VERSION=develop" >> $GITHUB_ENV
             echo "CLOWDER_TAGS=develop" >> $GITHUB_ENV
-          else
-            echo "CLOWDER_VERSION=testing" >> $GITHUB_ENV
+          else 
+            echo "CLOWDER_VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
             echo "CLOWDER_TAGS=" >> $GITHUB_ENV
           fi
 
