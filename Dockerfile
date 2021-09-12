@@ -1,7 +1,8 @@
 # ----------------------------------------------------------------------
 # BUILD CLOWDER DIST
 # ----------------------------------------------------------------------
-FROM java:jdk-alpine as clowder-build
+# FROM java:jdk-alpine as clowder-build
+FROM openjdk:8-jdk-alpine as clowder-build
 
 ARG BRANCH
 ARG VERSION
@@ -35,7 +36,8 @@ RUN rm -rf target/universal/clowder-*.zip clowder clowder-* \
 # ----------------------------------------------------------------------
 # BUILD CLOWDER
 # ----------------------------------------------------------------------
-FROM java:jre-alpine
+#FROM java:jre-alpine
+FROM openjdk:8u212-jre-alpine
 
 # add bash
 RUN apk add --no-cache bash curl
