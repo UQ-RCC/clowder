@@ -68,6 +68,11 @@ COPY --chown=0:0 --from=clowder-build /src/clowder /home/clowder/
 COPY docker/clowder.sh docker/healthcheck.sh /home/clowder/
 COPY docker/custom.conf docker/play.plugins /home/clowder/custom/
 
+# add letsecrypt to 
+# download https://letsencrypt.org/certs/letsencryptauthorityx1.pem
+RUN wget https://letsencrypt.org/certs/letsencryptauthorityx1.pem -O /tmp/letsencryptauthorityx1.pem
+RUN keytool -import -alias letsecrypt -file /tmp/letsencryptauthorityx1.pem -keystore ${JAVA_HOME}/jre/lib/security/cacerts -storepass changeit
+
 # Containers should NOT run as root as a good practice
 # numeric id to be compatible with openshift, will run as random userid:0
 RUN mkdir -p /home/clowder/data && \
