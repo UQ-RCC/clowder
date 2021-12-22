@@ -4,10 +4,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
-### Added
-- Add "when" parameter in a few GET API endpoints to enable pagination [#266](https://github.com/clowder-framework/clowder/issues/266)
+## 1.19.4 - 2021-11-11
 
+### Fixed
+- Error with adding dataset to collection. [#306](https://github.com/clowder-framework/clowder/issues/306)
+
+## 1.19.3 - 2021-11-11
+
+See [fix-counts.js](scripts/updates/fix-count.js) for a script that can be run before this update (as well as the
+update for 1.19.0) to pre populate the migration. This will speed up the update and will not impact the running
+instance.
+
+### Fixed
+- If a space has a lot of datasets, rendering the space page is very slow. Files in a space is now cached.
+- Set permissions for folders to be 777 this fixes [clowder-helm#5](https://github.com/clowder-framework/clowder-helm/issues/5)
+
+## 1.19.2 - 2021-10-20
+
+### Fixed
+- Error with library dependencies broke search capabilities, rolled back to known working versions
+
+## 1.19.1 - 2021-10-19
+
+### Added
+- Support the [DefaultAWSCredentialsProviderChain](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/auth/DefaultAWSCredentialsProviderChain.html) 
+  for passing in credentials to the S3ByteStorageService.
+
+### Fixed
+- Cleaning up after a failed upload should no longer decrement the file + byte counts.
+- Fix the broken preview after file deletion within a folder. [#277](https://github.com/clowder-framework/clowder/issues/277) 
+- Fix public spaces not displaying correctly if not logged in.
+
+### Changed
+- Now building mongo-init and monitor docker containers with python 3.8
+- Upgraded extractor parameters jsonform to version `2.2.5`.
+
+### Removed
+- Check image is now part of [ncsa/checks](https://github.com/ncsa/checks/)
+
+## 1.19.0 - 2021-10-05
+**_Important:_** This update requires a MongoDB update schema due to the new ability of showing summary statistics at the
+space level. Make sure to start the application with -DMONGOUPDATE=1.
+
+### Fixed
+- Adding dataset to space. Space list on dataset page would be empty - fixed error when no spaces would load. [#274](https://github.com/clowder-framework/clowder/issues/274)
+- Typos "success" when returning status from API and "occurred" when logging to console.
+- If a dataset had multiple folders the layout would be wrong.
+- Collections created using api route are now indexed upon creation. [#257](https://github.com/clowder-framework/clowder/issues/257)
+
+### Added
+- Mime type for geojson
+- "when" parameter in a few GET API endpoints to enable pagination [#266](https://github.com/clowder-framework/clowder/issues/266)
+- Show space statistics (bytes, users. etc) [#119](https://github.com/clowder-framework/clowder/issues/119)
+- "id" in GET metadata.jsonld endpoints [#278](https://github.com/clowder-framework/clowder/issues/278)
+- 'POST /api/files/uploadToDataset' now allows folder_id for uploading file to folder. [#232](https://github.com/clowder-framework/clowder/issues/232)
 
 ## 1.18.1 - 2021-08-16
 
@@ -24,7 +74,6 @@ If any files are returned, you should check to see if these files affected and a
 - Updated swagger documentation
 - Return 404 not found when calling file/dataset/space api endpoints with an invalid ID [#251](https://github.com/clowder-framework/clowder/issues/251)
 - Line breaks in welcome message breaks swagger build [#187](https://github.com/clowder-framework/clowder/issues/187)
-- Collections created using api route are now indexed upon creation. [#257](https://github.com/clowder-framework/clowder/issues/257)
 
 ### Changed
 - Added more information when writing files to make sure files are written correctly
@@ -61,7 +110,6 @@ If any files are returned, you should check to see if these files affected and a
 
 ### Changed
 - Updated Sphinx dependencies due to security and changes in required packages.
-
 - Updated the three.js libraries for the FBX previewer
 
 ## 1.16.0 - 2021-03-31

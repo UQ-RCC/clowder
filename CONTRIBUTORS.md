@@ -16,6 +16,7 @@ Following is a list of contributors in alphabetical order:
 - Inna Zharnitsky
 - Jim Myers
 - Jong Lee
+- Kastan Day
 - Kaveh Karimi-Asli
 - Kenton McHenry
 - Luigi Marini
@@ -34,6 +35,7 @@ Following is a list of contributors in alphabetical order:
 - Sandeep Puthanveetil Satheesan
 - Smruti Padhy
 - Theerasit Issaranon
+- Tim Yardley
 - Todd Nicholson
 - Varun Kethineedi
 - Ward Poelmans

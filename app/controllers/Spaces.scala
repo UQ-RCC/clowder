@@ -1,31 +1,22 @@
 package controllers
 
-import java.net.URL
-import java.util.{ Calendar, Date }
-import javax.inject.Inject
-
 import api.Permission
 import api.Permission._
 import models._
-import play.api.{ Logger, Play }
-import play.api.data.Forms._
-import play.api.data.{ Form, Forms }
-import play.api.libs.json.JsValue
-import play.api.libs.json.Json
-import play.api.i18n.Messages
-import services._
-import securesocial.core.providers.{ Token, UsernamePasswordProvider }
 import org.joda.time.DateTime
+import play.api.data.Forms._
+import play.api.data.{Form, Forms}
 import play.api.i18n.Messages
-import play.api.libs.ws._
-import services.AppConfiguration
-import util.{ Formatters, Mail, Publications }
+import play.api.{Logger, Play}
+import securesocial.core.providers.{Token, UsernamePasswordProvider}
+import services._
+import util.{Formatters, Mail, Publications}
 
+import java.net.URL
+import java.util.{Calendar, Date}
+import javax.inject.Inject
 import scala.collection.immutable.List
-import scala.collection.mutable.{ ArrayBuffer, ListBuffer }
-import scala.concurrent.{ Future, Await }
-import scala.concurrent.duration._
-import org.apache.commons.lang.StringEscapeUtils.escapeJava
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 /**
  * Spaces allow users to partition the data into realms only accessible to users with the right permissions.
@@ -421,7 +412,7 @@ class Spaces @Inject() (spaces: SpaceService, users: UserService, events: EventS
                       val newSpace = ProjectSpace(name = formData.name, description = formData.description,
                         created = new Date, creator = userId, homePage = formData.homePage,
                         logoURL = formData.logoURL, bannerURL = formData.bannerURL,
-                        collectionCount = 0, datasetCount = 0, userCount = 0, metadata = List.empty,
+                        collectionCount = 0, datasetCount = 0, fileCount = 0, userCount = 0, spaceBytes = 0, metadata = List.empty,
                         resourceTimeToLive = formData.resourceTimeToLive * 60 * 60 * 1000L, isTimeToLiveEnabled = formData.isTimeToLiveEnabled,
                         status = formData.access,
                         affiliatedSpaces = formData.affSpace)
@@ -647,5 +638,4 @@ class Spaces @Inject() (spaces: SpaceService, users: UserService, events: EventS
         case None => BadRequest(views.html.notFound(spaceTitle + " does not exist."))
       }
   }
-
 }
