@@ -53,10 +53,10 @@ class PPMSSyncService (application: Application) extends Plugin {
 
   
   override def onStart() {
-    Logger.debug("Starting ppms sync plugin")
+    Logger.info("Starting ppms sync plugin")
     /*make sure username password is disabled, otherwise turn this off. reason: cannot create username password */
     // if ( play.Play.application().configuration().getBoolean("enableUsernamePassword") ) {
-    //   Logger.debug("Make sure to turn off usernamepassword to make this plugin works")
+    //   Logger.info("Make sure to turn off usernamepassword to make this plugin works")
     //   return
     // }
 
@@ -77,9 +77,9 @@ class PPMSSyncService (application: Application) extends Plugin {
     
     /*start timeinterval*/
     val timeInterval = play.Play.application().configuration().getInt("ppms.syncEvery")
-    Logger.debug("time interval:" + timeInterval.toString)
+    Logger.info("time interval:" + timeInterval.toString)
 	  Akka.system().scheduler.schedule(0.minutes, timeInterval.intValue().minutes){
-      Logger.debug("Syncing ....")
+      Logger.info("Syncing ....")
       if ( getFirstAdmin() != None ) {
         syncProjectsFromPPMS
       }
@@ -87,7 +87,7 @@ class PPMSSyncService (application: Application) extends Plugin {
   }
   
   override def onStop() {
-    Logger.debug("Shutting down ppms sync plugin")
+    Logger.info("Shutting down ppms sync plugin")
   }
 
   override lazy val enabled = {
@@ -107,7 +107,7 @@ class PPMSSyncService (application: Application) extends Plugin {
           // make sure this user is in space, if not so
           users.getUserRoleInSpace(anUser.id, space.id) match {
             case Some(userRole) => {
-              Logger.debug("User " + memberEmail + " existing role: " + userRole.name)
+              Logger.info("User " + memberEmail + " existing role: " + userRole.name)
               // ignore
             }
             case None => spaces.addUser(anUser.id , Role.Editor, space.id)
@@ -115,7 +115,7 @@ class PPMSSyncService (application: Application) extends Plugin {
         }
         case None => {
           // create new user
-          Logger.debug("User " + memberEmail + " does not exist! Create a new one!")
+          Logger.info("User " + memberEmail + " does not exist! Create a new one!")
           val newUser = new ClowderUser(
                               id=UUID.generate,
                               identityId=new IdentityId( (member.get \ "email").as[String], ppmsDefaultIdProvider),
@@ -129,7 +129,7 @@ class PPMSSyncService (application: Application) extends Plugin {
                             )
           val addedUser = users.insert(newUser)
           if(addedUser != None) {
-            Logger.debug("User created. Adding to space. Status= " + addedUser.get.status)
+            Logger.info("User created. Adding to space. Status= " + addedUser.get.status)
             spaces.addUser(addedUser.get.id , Role.Editor, space.id)
           }
         }
@@ -178,9 +178,9 @@ class PPMSSyncService (application: Application) extends Plugin {
     val projGroup = (projectInfo \ "ProjectGroup").as[String]
     val projDesc = (projectInfo \ "Descr").as[String]
     var rawDataStorage = (extraProfile \ ppmsStorageField).as[String]
-    Logger.debug(">>>Syncing project: " + projName + " id=" + projId.toString)
+    Logger.info(">>>Syncing project: " + projName + " id=" + projId.toString)
     if (rawDataStorage == None || rawDataStorage.trim().isEmpty()) {
-      Logger.debug("Project " + projName + " has no storage defined. Ignore!!!")
+      Logger.info("Project " + projName + " has no storage defined. Ignore!!!")
       return
     }
     rawDataStorage = rawDataStorage.trim()
@@ -195,12 +195,12 @@ class PPMSSyncService (application: Application) extends Plugin {
     ProjectGroup:%s
     Desc:%s""" format(projId, rawDataStorage, projType, projGroup, projDesc)
 
-    Logger.debug("Syncing project: name =" + projName + " projectId=" + projId + " rawdata=" + rawDataStorage)
+    Logger.info("Syncing project: name =" + projName + " projectId=" + projId + " rawdata=" + rawDataStorage)
     // allSpaces: List[ProjectSpace]
     val allSpaces = spaces.list()
     var spaceList = allSpaces.filter(_space => _space.name == projName)
     if (spaceList.length == 0) {
-      Logger.debug(">>>No space exists, create a new one")
+      Logger.info(">>>No space exists, create a new one")
       //create new space
       var newSpace = ProjectSpace(name = projName, description = desc,
                                   created = new Date, creator = getFirstAdmin.get.id, 
@@ -243,17 +243,17 @@ class PPMSSyncService (application: Application) extends Plugin {
         metadatas.addDefinition(new_metadata)
       }
     } else {
-      Logger.debug("Space exists, update it")
+      Logger.info("Space exists, update it")
       // go through the metadata of each space to make sure the collection is there
       spaceList.foreach{aSpace =>
         metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
-          Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
+          Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
           if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
             syncUsersInproject(projId, aSpace)
           }
         } 
         // aSpace.metadata.foreach{metadata =>
-        //   Logger.debug("Space "+ aSpace.name + " metadata: " + metadata.content)
+        //   Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
         //   if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
         //     // now update the space
         //     syncUsersInproject(projId, aSpace)
@@ -267,15 +267,15 @@ class PPMSSyncService (application: Application) extends Plugin {
   * sync all projects from PPMS
   */
   private def syncProjectsFromPPMS(): Unit = {
-    Logger.debug("Start the syncing process ...")
+    Logger.info("Start the syncing process ...")
     if(ppmsUrl.equals("") || ppmsPumaApiKey.equals("") || ppmsApi2Key.equals("")) {
-      Logger.debug("ppms.url or key not provided, ignore")
+      Logger.info("ppms.url or key not provided, ignore")
       return
     }
     // get projects
     val projectsJsonArr = PPMSUtils.getPPMSProjects(ppmsUrl, ppmsPumaApiKey, ppmsGetProjectAction)
     projectsJsonArr.value.foreach { projectInfo =>
-      Logger.debug("Syncing project: " + (projectInfo \ "ProjectName").as[String])
+      Logger.info("Syncing project: " + (projectInfo \ "ProjectName").as[String])
       val projId = (projectInfo \ "ProjectRef").as[Int]
       if ( projId >= startingProjectId ) {
         val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
