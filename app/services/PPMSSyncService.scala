@@ -11,7 +11,8 @@ import play.libs.Akka
 import scala.concurrent.duration._
 import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.json._
-
+import api.Permission
+import api.Permission.Permission
 import models._
 import securesocial.core._ 
 
@@ -198,9 +199,10 @@ class PPMSSyncService (application: Application) extends Plugin {
 
     Logger.info("Syncing project: name =" + projName + " projectId=" + projId + " rawdata=" + rawDataStorage)
     // allSpaces: List[ProjectSpace]
-    val allSpaces = spaces.list()
-    Logger.info("There are total of:" + allSpaces.length + " spaces")
-    var spaceList = allSpaces.filter(_space => _space.name == projName)
+    // val allSpaces = spaces.list()
+    // Logger.info("There are total of:" + allSpaces.length + " spaces")
+    // var spaceList = allSpaces.filter(_space => _space.name == projName)
+    var spaceList = spaces.listAccess(0, projName, Set[Permission](Permission.ViewSpace), getFirstAdmin, showAll=true, showPublic=true, showOnlyShared=false)
     Logger.info("Found:" + spaceList.length + " spaces with given name")
     if (spaceList.length == 0) {
       Logger.info(">>>>>>> No space exists, create a new one <<<<<<")
