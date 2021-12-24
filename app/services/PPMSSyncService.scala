@@ -54,6 +54,7 @@ class PPMSSyncService (application: Application) extends Plugin {
   
   override def onStart() {
     Logger.info("Starting ppms sync plugin")
+    Logger.info("There are total of:" + spaces.list().length + " spaces")
     /*make sure username password is disabled, otherwise turn this off. reason: cannot create username password */
     // if ( play.Play.application().configuration().getBoolean("enableUsernamePassword") ) {
     //   Logger.info("Make sure to turn off usernamepassword to make this plugin works")
@@ -198,9 +199,11 @@ class PPMSSyncService (application: Application) extends Plugin {
     Logger.info("Syncing project: name =" + projName + " projectId=" + projId + " rawdata=" + rawDataStorage)
     // allSpaces: List[ProjectSpace]
     val allSpaces = spaces.list()
+    Logger.info("There are total of:" + allSpaces.length + " spaces")
     var spaceList = allSpaces.filter(_space => _space.name == projName)
+    Logger.info("Found:" + spaceList.length + " spaces with given name")
     if (spaceList.length == 0) {
-      Logger.info(">>>No space exists, create a new one")
+      Logger.info(">>>>>>> No space exists, create a new one <<<<<<")
       //create new space
       var newSpace = ProjectSpace(name = projName, description = desc,
                                   created = new Date, creator = getFirstAdmin.get.id, 
@@ -243,7 +246,7 @@ class PPMSSyncService (application: Application) extends Plugin {
         metadatas.addDefinition(new_metadata)
       }
     } else {
-      Logger.info("Space exists, update it")
+      Logger.info(">>>>>>>>>>>>>Space exists, update it<<<<<<<<<<<<<<<")
       // go through the metadata of each space to make sure the collection is there
       spaceList.foreach{aSpace =>
         metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
