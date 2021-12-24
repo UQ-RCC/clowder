@@ -202,7 +202,9 @@ class PPMSSyncService (application: Application) extends Plugin {
     // val allSpaces = spaces.list()
     // Logger.info("There are total of:" + allSpaces.length + " spaces")
     // var spaceList = allSpaces.filter(_space => _space.name == projName)
-    var spaceList = spaces.listAccess(0, projName, Set[Permission](Permission.ViewSpace), getFirstAdmin, showAll=true, showPublic=true, showOnlyShared=false)
+    val allSpaces = spaces.listAccess(0, Set[Permission](Permission.ViewSpace), getFirstAdmin, showAll=true, showPublic=true, showOnlyShared=false)
+    Logger.info("There are total of:" + allSpaces.length + " spaces")
+    var spaceList = allSpaces.filter(_space => _space.name == projName)
     Logger.info("Found:" + spaceList.length + " spaces with given name")
     if (spaceList.length == 0) {
       Logger.info(">>>>>>> No space exists, create a new one <<<<<<")
