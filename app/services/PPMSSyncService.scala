@@ -204,9 +204,20 @@ class PPMSSyncService (application: Application) extends Plugin {
     // var spaceList = allSpaces.filter(_space => _space.name == projName)
     val allSpaces = spaces.listAccess(0, Set[Permission](Permission.ViewSpace), getFirstAdmin, showAll=true, showPublic=true, onlyTrial=false, showOnlyShared=false)
     Logger.info("There are total of:" + allSpaces.length + " spaces")
-    var spaceList = allSpaces.filter(_space => _space.name == projName)
-    Logger.info("Found:" + spaceList.length + " spaces with given name")
-    if (spaceList.length == 0) {
+    var spaceInDb = None
+    spaceList.foreach{aSpace =>
+      metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
+        Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
+        if (metadata.content != None && projId == (metadata.content \ "projId").as[Int]  ) {
+          spaceInDb = aSpace
+        }
+      } 
+    } // end spaces for each
+
+    // var spaceList = allSpaces.filter(_space => _space.name == projName)
+    // Logger.info("Found:" + spaceList.length + " spaces with given name")
+
+    if (spaceInDb == None) {
       Logger.info(">>>>>>> No space exists, create a new one <<<<<<")
       //create new space
       var newSpace = ProjectSpace(name = projName, description = desc,
@@ -251,22 +262,28 @@ class PPMSSyncService (application: Application) extends Plugin {
       }
     } else {
       Logger.info(">>>>>>>>>>>>>Space exists, update it<<<<<<<<<<<<<<<")
+      metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, spaceInDb.id)).foreach { metadata => 
+        Logger.info("Space "+ spaceInDb.name + " metadata: " + metadata.content)
+        if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
+          syncUsersInproject(projId, spaceInDb)
+        }
+      }
       // go through the metadata of each space to make sure the collection is there
-      spaceList.foreach{aSpace =>
-        metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
-          Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
-          if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
-            syncUsersInproject(projId, aSpace)
-          }
-        } 
-        // aSpace.metadata.foreach{metadata =>
-        //   Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
-        //   if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
-        //     // now update the space
-        //     syncUsersInproject(projId, aSpace)
-        //   }
-        // } // end metadata for each
-      } // end spaces for each
+      // spaceList.foreach{aSpace =>
+      //   metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
+      //     Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
+      //     if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
+      //       syncUsersInproject(projId, aSpace)
+      //     }
+      //   } 
+      //   // aSpace.metadata.foreach{metadata =>
+      //   //   Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
+      //   //   if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
+      //   //     // now update the space
+      //   //     syncUsersInproject(projId, aSpace)
+      //   //   }
+      //   // } // end metadata for each
+      // } // end spaces for each
     } // end space exists 
   }
 
