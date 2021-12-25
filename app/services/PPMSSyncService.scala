@@ -204,7 +204,7 @@ class PPMSSyncService (application: Application) extends Plugin {
     // var spaceList = allSpaces.filter(_space => _space.name == projName)
     val allSpaces = spaces.listAccess(0, Set[Permission](Permission.ViewSpace), getFirstAdmin, showAll=true, showPublic=true, onlyTrial=false, showOnlyShared=false)
     Logger.info("There are total of:" + allSpaces.length + " spaces")
-    var spaceInDb = None
+    var spaceInDb: Option[ProjectSpace] = None
     allSpaces.foreach{aSpace =>
       metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
         Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
