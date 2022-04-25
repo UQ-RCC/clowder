@@ -31,6 +31,11 @@ RUN rm -rf target/universal/clowder-*.zip clowder clowder-* \
     && ./sbt dist \
     && unzip -q target/universal/clowder-*.zip \
     && mv clowder-* clowder \
+    && apk add --no-cache zip \
+    && for x in $(find clowder -name \*.jar); do \
+         zip -d $x org/apache/log4j/net/JMSAppender.class org/apache/log4j/net/SocketServer.class | grep 'deleting:' && echo "fixed $x"; \
+       done; \
+       echo "removed JMSAppender and SocketServer" \
     && mkdir -p clowder/custom clowder/logs
 
 # ----------------------------------------------------------------------
@@ -76,7 +81,7 @@ RUN keytool -import -alias letsecrypt -file /tmp/letsencryptauthorityx1.pem -key
 # Containers should NOT run as root as a good practice
 # numeric id to be compatible with openshift, will run as random userid:0
 RUN mkdir -p /home/clowder/data && \
-    chmod g+w /home/clowder/logs /home/clowder/data /home/clowder/custom
+    chmod 777 /home/clowder/logs /home/clowder/data /home/clowder/custom
 USER 10001
 
 # command to run when starting docker

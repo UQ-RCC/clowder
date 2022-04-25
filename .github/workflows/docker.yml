@@ -36,7 +36,7 @@ jobs:
           - clowder
           - mongo-init
           - monitor
-          - check
+          - elasticsearch
         include:
           - name: clowder
             FOLDER: "."
@@ -50,10 +50,11 @@ jobs:
             FOLDER: scripts/monitor
             IMAGE: monitor
             README: ""
-          - name: check
-            FOLDER: scripts/check
-            IMAGE: check
+          - name: elasticsearch
+            FOLDER: scripts/elasticsearch
+            IMAGE: elasticsearch
             README: ""
+
     steps:
       - uses: actions/checkout@v2
 
