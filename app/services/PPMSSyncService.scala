@@ -232,7 +232,7 @@ class PPMSSyncService (application: Application) extends Plugin {
         var newSpace = ProjectSpace(name = projName, description = desc,
                                     created = new Date, creator = getFirstAdmin.get.id, 
                                     homePage = List.empty, logoURL = None, bannerURL = None,
-                                    collectionCount = 0, datasetCount = 0, userCount = 0, 
+                                    collectionCount = 0, datasetCount = 0, fileCount = 0, userCount = 0, spaceBytes = 0, 
                                     metadata = List.empty,
                                     resourceTimeToLive = SpaceConfig.getTimeToLive(), 
                                     isTimeToLiveEnabled = SpaceConfig.getIsTimeToLiveEnabled(),
