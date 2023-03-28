@@ -89,7 +89,7 @@ jobs:
       # build the docker image, this will always run to make sure
       # the Dockerfile still works.
       - name: Build image
-        uses: elgohr/Publish-Docker-Github-Action@2.22
+        uses: elgohr/Publish-Docker-Github-Action@v5
         env:
           BRANCH: ${{ env.GITHUB_BRANCH }}
           VERSION: ${{ env.CLOWDER_VERSION }}
@@ -108,7 +108,7 @@ jobs:
       # this will publish to github container registry
       #      - name: Publish to GitHub
       #  if: github.event_name != 'pull_request' && github.repository == env.MASTER_REPO
-      #  uses: elgohr/Publish-Docker-Github-Action@2.22
+      #  uses: elgohr/Publish-Docker-Github-Action@v5
       #  env:
       #    BRANCH: ${{ env.GITHUB_BRANCH }}
       #    VERSION: ${{ env.CLOWDER_VERSION }}
@@ -126,7 +126,7 @@ jobs:
       # this will publish to the clowder dockerhub repo
       - name: Publish to Docker Hub
         if: github.event_name != 'pull_request' && github.repository == env.MASTER_REPO
-        uses: elgohr/Publish-Docker-Github-Action@2.22
+        uses: elgohr/Publish-Docker-Github-Action@v5
         env:
           BRANCH: ${{ env.GITHUB_BRANCH }}
           VERSION: ${{ env.CLOWDER_VERSION }}
