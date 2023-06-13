@@ -46,7 +46,7 @@ FROM openjdk:8-jdk
 
 # add bash
 RUN apt-get update 
-RUN apt-get install -y bash curl
+RUN apt-get install -y bash curl bind9
 #RUN apk add --no-cache bash curl
 
 # environemnt variables
