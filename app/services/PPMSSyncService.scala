@@ -181,7 +181,7 @@ class PPMSSyncService (application: Application) extends Plugin {
     val projDesc = (projectInfo \ "Descr").as[String]
     var rawDataStorage = (extraProfile \ ppmsStorageField).as[String]
     Logger.info(">>>Syncing project: " + projName + " id=" + projId.toString)
-    if (rawDataStorage == None || rawDataStorage.trim().isEmpty()) {
+    if (rawDataStorage == None || rawDataStorage.trim().isEmpty() || !rawDataStorage.contains("-")) {
       Logger.info("Project " + projName + " has no storage defined. Ignore!!!")
       return
     }
