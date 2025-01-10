@@ -60,16 +60,18 @@ object PPMSUtils {
     /**
     * getPPMSProjects 
     */
-    def getPPMSProjects(url: String, pumaKey: String, getProjectAction: String): JsArray = {
+    def getPPMSProjects(url: String, pumaKey: String, getProjectAction: String, coreid: String): JsArray = {
         val params = new ArrayList[NameValuePair]()
         params.add(new BasicNameValuePair("apikey", pumaKey))
         params.add(new BasicNameValuePair("action", getProjectAction))
+        params.add(new BasicNameValuePair("coreid", coreid))
         params.add(new BasicNameValuePair("format", "json"))
         params.add(new BasicNameValuePair("active", true.toString))  
         val ppmsResponse = requestPPMS(url, false, params)
         ppmsResponse match {
             case Some(resp) => {
                 val projectsList: JsArray = Json.parse(resp).as[JsArray]
+                Logger.info("PPMS get projects: got " + projectsList.value.size + " projects for coreid " + coreid)
                 return projectsList
             }
             case None => {

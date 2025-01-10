@@ -1,14 +1,16 @@
 # ----------------------------------------------------------------------
 # BUILD CLOWDER DIST
 # ----------------------------------------------------------------------
-# FROM java:jdk-alpine as clowder-build
-FROM openjdk:8-jdk as clowder-build
+FROM openjdk:8-jdk-bullseye as clowder-build
 
-ARG BRANCH
-ARG VERSION
-ARG BUILDNUMBER
-ARG GITSHA1
+ARG BRANCH="unknown"
+ARG VERSION="unknown"
+ARG BUILDNUMBER="unknown"
+ARG GITSHA1="unknown"
 
+# copy these cache folders from $HOME to speed up sbt build during debug
+# COPY .sbt /root/.sbt
+# COPY .ivy2 /root/.ivy2
 WORKDIR /src
 
 # install clowder libraries (hopefully cached)
@@ -31,7 +33,7 @@ RUN rm -rf target/universal/clowder-*.zip clowder clowder-* \
     && ./sbt dist \
     && unzip -q target/universal/clowder-*.zip \
     && mv clowder-* clowder \
-    && apk add --no-cache zip \
+    && apt-get update && apt-get -y install zip \
     && for x in $(find clowder -name \*.jar); do \
          zip -d $x org/apache/log4j/net/JMSAppender.class org/apache/log4j/net/SocketServer.class | grep 'deleting:' && echo "fixed $x"; \
        done; \
@@ -41,19 +43,17 @@ RUN rm -rf target/universal/clowder-*.zip clowder clowder-* \
 # ----------------------------------------------------------------------
 # BUILD CLOWDER
 # ----------------------------------------------------------------------
-#FROM java:jre-alpine
-FROM openjdk:8-jdk
+FROM openjdk:8-jre-bullseye as clowder-runtime
 
 # add bash
-RUN apt-get update 
-RUN apt-get install -y bash curl bind9
+RUN apt-get update && apt-get install -y bash curl bind9
 #RUN apk add --no-cache bash curl
 
 # environemnt variables
-ARG BRANCH
-ARG VERSION
-ARG BUILDNUMBER
-ARG GITSHA1
+ARG BRANCH="unknown"
+ARG VERSION="unknown"
+ARG BUILDNUMBER="unknown"
+ARG GITSHA1="unknown"
 ENV BRANCH=${BRANCH} \
     VERSION=${VERSION} \
     BUILDNUMBER=${BUILDNUMBER} \
@@ -76,7 +76,7 @@ COPY docker/custom.conf docker/play.plugins /home/clowder/custom/
 # add letsecrypt to 
 # download https://letsencrypt.org/certs/letsencryptauthorityx1.pem
 RUN wget https://letsencrypt.org/certs/letsencryptauthorityx1.pem -O /tmp/letsencryptauthorityx1.pem
-RUN keytool -import -alias letsecrypt -file /tmp/letsencryptauthorityx1.pem -keystore ${JAVA_HOME}/jre/lib/security/cacerts -storepass changeit
+RUN keytool -import -alias letsecrypt -file /tmp/letsencryptauthorityx1.pem -keystore ${JAVA_HOME}/lib/security/cacerts -storepass changeit -noprompt
 
 # Containers should NOT run as root as a good practice
 # numeric id to be compatible with openshift, will run as random userid:0

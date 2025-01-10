@@ -35,6 +35,7 @@ class PPMSSyncService (application: Application) extends Plugin {
   var ppmsUrl: String = ""
   var ppmsPumaApiKey: String = ""
   var ppmsApi2Key: String = ""
+  var ppmsCoreids: List[String] = List.empty
   var ppmsGetProjectAction: String = ""
   var ppmsGetProjectMemberAction: String = ""
   var ppmsGetUserAction: String = ""
@@ -55,7 +56,7 @@ class PPMSSyncService (application: Application) extends Plugin {
   
   override def onStart() {
     Logger.info("Starting ppms sync plugin")
-    Logger.info("There are total of:" + spaces.list().length + " spaces")
+    Logger.info("There are total of: " + spaces.list().length + " spaces")
     /*make sure username password is disabled, otherwise turn this off. reason: cannot create username password */
     // if ( play.Play.application().configuration().getBoolean("enableUsernamePassword") ) {
     //   Logger.info("Make sure to turn off usernamepassword to make this plugin works")
@@ -68,6 +69,7 @@ class PPMSSyncService (application: Application) extends Plugin {
     this.ppmsUrl = ppmsUrl
     this.ppmsPumaApiKey = play.api.Play.configuration.getString("ppms.pumapikey").getOrElse("")
     this.ppmsApi2Key = play.api.Play.configuration.getString("ppms.api2key").getOrElse("")
+    this.ppmsCoreids = play.api.Play.configuration.getString("ppms.coreids").get.trim.split(",").toList
     this.ppmsGetProjectAction = play.api.Play.configuration.getString("ppms.action.getprojects").getOrElse("getprojects")
     this.ppmsGetProjectMemberAction = play.api.Play.configuration.getString("ppms.action.getprojectmember").getOrElse("getprojectmember")
     this.ppmsGetUserAction = play.api.Play.configuration.getString("ppms.action.getuser").getOrElse("getuser")
@@ -180,7 +182,7 @@ class PPMSSyncService (application: Application) extends Plugin {
     val projGroup = (projectInfo \ "ProjectGroup").as[String]
     val projDesc = (projectInfo \ "Descr").as[String]
     var rawDataStorage = (extraProfile \ ppmsStorageField).as[String]
-    Logger.info(">>>Syncing project: " + projName + " id=" + projId.toString)
+    Logger.debug("Syncing project: " + projName + " id=" + projId.toString)
     if (rawDataStorage == None || rawDataStorage.trim().isEmpty() || !rawDataStorage.contains("-")) {
       Logger.info("Project " + projName + " has no storage defined. Ignore!!!")
       return
@@ -197,17 +199,17 @@ class PPMSSyncService (application: Application) extends Plugin {
     ProjectGroup:%s
     Desc:%s""" format(projId, rawDataStorage, projType, projGroup, projDesc)
 
-    Logger.info("Syncing project: name =" + projName + " projectId=" + projId + " rawdata=" + rawDataStorage)
+    Logger.info("Syncing project: name=" + projName + " id=" + projId + " rawdata=" + rawDataStorage)
     // allSpaces: List[ProjectSpace]
     // val allSpaces = spaces.list()
     // Logger.info("There are total of:" + allSpaces.length + " spaces")
     // var spaceList = allSpaces.filter(_space => _space.name == projName)
     val allSpaces = spaces.listAccess(0, Set[Permission](Permission.ViewSpace), getFirstAdmin, showAll=true, showPublic=true, onlyTrial=false, showOnlyShared=false)
-    Logger.info("There are total of:" + allSpaces.length + " spaces")
+    Logger.info("There are total of: " + allSpaces.length + " spaces")
     var spaceInDb: Option[ProjectSpace] = None
     allSpaces.foreach{aSpace =>
       metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, aSpace.id)).foreach { metadata => 
-        Logger.info("Space "+ aSpace.name + " metadata: " + metadata.content)
+        Logger.debug("Space " + aSpace.name + " metadata: " + metadata.content)
         if (metadata.content != None && projId == (metadata.content \ "projId").as[Int]  ) {
           spaceInDb = Some(aSpace)
         }
@@ -219,6 +221,10 @@ class PPMSSyncService (application: Application) extends Plugin {
     spaceInDb match {
       case Some(_aSpace) => {
         Logger.info(">>>>>>>>>>>>>Space exists, update it<<<<<<<<<<<<<<<")
+        if (_aSpace.name != projName) {
+          Logger.info("Updating space name: \"" + _aSpace.name + "\" -> \"" + projName + "\"")
+          spaces.update(_aSpace.copy(name = projName))
+        }
         metadatas.getMetadataByAttachTo(ResourceRef(ResourceRef.space, _aSpace.id)).foreach { metadata => 
           Logger.info("Space "+ _aSpace.name + " metadata: " + metadata.content)
           if (metadata.content != None && rawDataStorage.equals( ((metadata.content \ "projStorage").as[String])  ) ) {
@@ -283,15 +289,19 @@ class PPMSSyncService (application: Application) extends Plugin {
       return
     }
     // get projects
-    val projectsJsonArr = PPMSUtils.getPPMSProjects(ppmsUrl, ppmsPumaApiKey, ppmsGetProjectAction)
-    projectsJsonArr.value.foreach { projectInfo =>
-      Logger.info("Syncing project: " + (projectInfo \ "ProjectName").as[String])
-      val projId = (projectInfo \ "ProjectRef").as[Int]
-      if ( projId >= startingProjectId ) {
-        val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
-        projectXtraProfileArr.value.foreach(syncProject(projectInfo, _)) 
+    var numProjects = 0
+    this.ppmsCoreids.foreach { ppmsCoreid =>
+      val projectsJsonArr = PPMSUtils.getPPMSProjects(ppmsUrl, ppmsPumaApiKey, ppmsGetProjectAction, ppmsCoreid)
+      numProjects += projectsJsonArr.value.size
+      projectsJsonArr.value.foreach { projectInfo =>
+        val projId = (projectInfo \ "ProjectRef").as[Int]
+        if ( projId >= startingProjectId ) {
+          val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
+          projectXtraProfileArr.value.foreach(syncProject(projectInfo, _))
+        }
       }
     }
+    Logger.info("Synced " + numProjects + " projects")
   } // end syncProjectsFromPPMS
 
 

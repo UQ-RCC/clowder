@@ -13,7 +13,7 @@ import NativePackagerKeys._
 object ApplicationBuild extends Build {
 
   val appName = "clowder"
-  val version = "1.20.1"
+  val version = "1.20.5"
   val jvm = "1.7"
 
   def appVersion: String = {
@@ -119,7 +119,8 @@ object ApplicationBuild extends Build {
     "org.scalatestplus" % "play_2.10" % "1.0.0" % "test",
 
     // iRods filestorage
-    "org.irods.jargon" % "jargon-core" % "3.3.3-beta1",
+    // see https://github.com/clowder-framework/clowder/issues/457
+    // "org.irods.jargon" % "jargon-core" % "3.3.3-beta1",
 
     // jsonp return from /api
     "org.julienrf" %% "play-jsonp-filter" % "1.1",
@@ -166,6 +167,9 @@ object ApplicationBuild extends Build {
     // custom/public/javascripts/previewers - for custom previewers
     // custom/custom.conf                   - to customize application.conf
     scriptClasspath += "../custom",
+
+    // see https://github.com/clowder-framework/clowder/issues/457
+    excludeFilter in Compile := "IRODS*.scala",
 
     // same for development mode
     unmanagedClasspath in Runtime += baseDirectory.value / "custom",
