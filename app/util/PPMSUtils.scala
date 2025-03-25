@@ -164,4 +164,58 @@ object PPMSUtils {
     }
 
 
+    /**
+    sample outputs
+    [
+      {
+        "User ID": 1234,
+        "User Login": "uq...",
+        "User Full Name": "Last First",
+        "User ORCID": "0000-0001-2345-6789",
+        "User is in an active project?": "Yes"
+      }
+    ]
+    */
+    def getPPMSUserids(url: String, api2key: String, useridsAction: String, coreid: String): JsArray = {
+        val params = new ArrayList[NameValuePair]()
+        params.add(new BasicNameValuePair("apikey", api2key))
+        params.add(new BasicNameValuePair("action", useridsAction))
+        params.add(new BasicNameValuePair("coreid", coreid))
+        params.add(new BasicNameValuePair("outformat", "json"))
+
+        val ppmsResponse = requestPPMS(url, true, params)
+        ppmsResponse match {
+            case Some(useridsGetResponse) => {
+                val useridsJson: JsArray = Json.parse(useridsGetResponse).as[JsArray]
+                Logger.debug("Get user orcids result: " + useridsJson)
+                return useridsJson
+            }
+            case None => {
+                Logger.warn("Get user orcids request returns null")
+                return Json.arr()
+            }
+        }
+    }
+
+
+    def getPPMSReport(url: String, api2key: String, reportAction: String): JsArray = {
+        val params = new ArrayList[NameValuePair]()
+        params.add(new BasicNameValuePair("apikey", api2key))
+        params.add(new BasicNameValuePair("action", reportAction))
+        params.add(new BasicNameValuePair("outformat", "json"))
+
+        val ppmsResponse = requestPPMS(url, true, params)
+        ppmsResponse match {
+            case Some(reportGetResponse) => {
+                val reportJson: JsArray = Json.parse(reportGetResponse).as[JsArray]
+                Logger.debug("Get " + reportAction + " result: " + reportJson)
+                return reportJson
+            }
+            case None => {
+                Logger.warn("Get " + reportAction + " request returns null")
+                return Json.arr()
+            }
+        }
+    }
+
 }

@@ -8,6 +8,7 @@ import util.{SpaceConfig, PPMSUtils}
 import play.api.Play._
 import play.api.{ Plugin, Logger, Application }
 import play.libs.Akka
+import scala.collection.mutable.Map
 import scala.concurrent.duration._
 import play.api.libs.concurrent.Execution.Implicits._
 import play.api.libs.json._
@@ -24,6 +25,9 @@ case class SyncAgent(id: UUID, var typeOfAgent: String = "cat:syncer", syncServi
   def url: Option[URL] = serverUrl
 }
 
+class PPMSCore(var inst: String, var facilShort: String, var facilLong: String, var rorid: String)
+class PPMSUserid(var uid: Int, var coreids: List[Int], var orcid: String)
+class PPMSUserOrg(var user: String, var grpid: Int, var grp: String, var dept: String, var inst: String, var instType: String, var grpCat: String)
 
 /**
  * A service that syncs with data structures in PPMS
@@ -39,12 +43,18 @@ class PPMSSyncService (application: Application) extends Plugin {
   var ppmsGetProjectAction: String = ""
   var ppmsGetProjectMemberAction: String = ""
   var ppmsGetUserAction: String = ""
+  var ppmsGetCoresAction: String = ""
+  var ppmsGetUseridsAction: String = ""
+  var ppmsGetUserOrgsAction: String = ""
   var ppmsGetXtraProjectProfileAction: String = ""
   var ppmsProjectProfileTileField: String = ""
   var ppmsDefaultIdProvider: String = ""
   var ppmsDefaultAuthMethod: String = ""
   var ppmsStorageField: String = ""
   var startingProjectId: Int = 0
+  var ppmsCores: Map[Int,PPMSCore] = Map.empty
+  var ppmsUserids: Map[String,PPMSUserid] = Map.empty
+  var ppmsUserOrgs: Map[Int,PPMSUserOrg] = Map.empty
   
   
   // services
@@ -52,7 +62,6 @@ class PPMSSyncService (application: Application) extends Plugin {
   val users: UserService = DI.injector.getInstance(classOf[UserService])
   val events: EventService = DI.injector.getInstance(classOf[EventService])
   val metadatas: MetadataService = DI.injector.getInstance(classOf[MetadataService])
-
   
   override def onStart() {
     Logger.info("Starting ppms sync plugin")
@@ -73,6 +82,9 @@ class PPMSSyncService (application: Application) extends Plugin {
     this.ppmsGetProjectAction = play.api.Play.configuration.getString("ppms.action.getprojects").getOrElse("getprojects")
     this.ppmsGetProjectMemberAction = play.api.Play.configuration.getString("ppms.action.getprojectmember").getOrElse("getprojectmember")
     this.ppmsGetUserAction = play.api.Play.configuration.getString("ppms.action.getuser").getOrElse("getuser")
+    this.ppmsGetCoresAction = play.api.Play.configuration.getString("ppms.action.getcores").getOrElse("")
+    this.ppmsGetUseridsAction = play.api.Play.configuration.getString("ppms.action.getuserids").getOrElse("")
+    this.ppmsGetUserOrgsAction = play.api.Play.configuration.getString("ppms.action.getuserorgs").getOrElse("")
     this.ppmsGetXtraProjectProfileAction = play.api.Play.configuration.getString("ppms.action.getextraprojectprofile").getOrElse("")
     this.ppmsStorageField = play.api.Play.configuration.getString("ppms.project.profile.storagefield").getOrElse("RawDataCollection")
     this.ppmsDefaultIdProvider = play.api.Play.configuration.getString("ppms.default.securesocial").getOrElse("cilogon")
@@ -85,9 +97,12 @@ class PPMSSyncService (application: Application) extends Plugin {
 	  Akka.system().scheduler.schedule(0.minutes, timeInterval.intValue().minutes){
       Logger.info("Syncing ....")
       if ( getFirstAdmin() != None ) {
+        syncCoresFromPPMS
+        syncUseridsFromPPMS
+        syncUserOrgsFromPPMS
         syncProjectsFromPPMS
       }
-	  }
+    }
   }
   
   override def onStop() {
@@ -105,7 +120,23 @@ class PPMSSyncService (application: Application) extends Plugin {
     // go though users in this project 
     val projectMembers = PPMSUtils.getPPMSProjectUsers(ppmsUrl, ppmsPumaApiKey, ppmsProjectId, ppmsGetProjectMemberAction, ppmsGetUserAction)
     projectMembers.foreach{member =>
-      val memberEmail = ((member.get \ "email").as[String])
+      val memberEmail = (member.get \ "email").as[String]
+      val memberLogin = (member.get \ "login").as[String]
+      var memberOrcid: String = null
+      var memberInst: String = null
+      val usrid: PPMSUserid = ppmsUserids.getOrElse(memberLogin, null)
+      if (usrid == null) {
+        Logger.warn(memberLogin + ": user ids not found")
+      } else {
+        memberOrcid = usrid.orcid
+        val org: PPMSUserOrg = ppmsUserOrgs.getOrElse(usrid.uid, null)
+        if (org == null) {
+          Logger.warn(memberLogin + ", (uid:" + usrid.uid + "): org not found")
+        } else {
+          memberInst = org.inst
+        }
+      }
+      var profile = new Profile(orcidID=Some(memberOrcid), institution=Some(memberInst))
       users.findByEmail( memberEmail ) match {
         case Some(anUser) => {
           // make sure this user is in space, if not so
@@ -116,10 +147,14 @@ class PPMSSyncService (application: Application) extends Plugin {
             }
             case None => spaces.addUser(anUser.id , Role.Editor, space.id)
           } 
+          if (isUpdatedUserProfile(memberLogin, anUser.profile.getOrElse(null), profile)) {
+            val updatedUser = users.updateProfile(anUser.id, profile)
+          }
         }
         case None => {
           // create new user
           Logger.info("User " + memberEmail + " does not exist! Create a new one!")
+          isUpdatedUserProfile(memberLogin, null, profile)
           val newUser = new ClowderUser(
                               id=UUID.generate,
                               identityId=new IdentityId( (member.get \ "email").as[String], ppmsDefaultIdProvider),
@@ -129,7 +164,8 @@ class PPMSSyncService (application: Application) extends Plugin {
                               email=Some(memberEmail),
                               authMethod=AuthenticationMethod(ppmsDefaultAuthMethod),
                               status=UserStatus.Active,
-                              termsOfServices=Some(UserTermsOfServices(accepted=false))
+                              termsOfServices=Some(UserTermsOfServices(accepted=false)),
+                              profile=Some(profile)
                             )
           val addedUser = users.insert(newUser)
           if(addedUser != None) {
@@ -150,6 +186,30 @@ class PPMSSyncService (application: Application) extends Plugin {
       case Some(admin) => Some(admin)
       case None => None
     }
+  }
+
+  private def isUpdatedUserProfile(username: String, profile1: Profile, profile2: Profile): Boolean = {
+    var isUpdated: Boolean = false
+    if (profile1 == null) {
+      if (profile2.orcidID.getOrElse(null) != null) {
+        Logger.info("Username " + username + " profile add: orcid " + profile2.orcidID.getOrElse("None"))
+        isUpdated = true
+      }
+      if (profile2.institution.getOrElse(null) != null) {
+        Logger.info("Username " + username + " profile add: institution " + profile2.institution.getOrElse("None"))
+        isUpdated = true
+      }
+    } else {
+      if (profile1.orcidID.getOrElse(null) != profile2.orcidID.getOrElse(null)) {
+        Logger.info("Username " + username + " profile update: orcid " + profile1.orcidID.getOrElse("None") + " -> " + profile2.orcidID.getOrElse("None"))
+        isUpdated = true
+      }
+      if (profile1.institution.getOrElse(null) != profile2.institution.getOrElse(null)) {
+        Logger.info("Username " + username + " profile update: institution " + profile1.institution.getOrElse("None") + " -> " + profile2.institution.getOrElse("None"))
+        isUpdated = true
+      }
+    }
+    isUpdated
   }
 
   /**
@@ -290,7 +350,7 @@ class PPMSSyncService (application: Application) extends Plugin {
     }
     // get projects
     var numProjects = 0
-    this.ppmsCoreids.foreach { ppmsCoreid =>
+    ppmsCoreids.foreach { ppmsCoreid =>
       val projectsJsonArr = PPMSUtils.getPPMSProjects(ppmsUrl, ppmsPumaApiKey, ppmsGetProjectAction, ppmsCoreid)
       numProjects += projectsJsonArr.value.size
       projectsJsonArr.value.foreach { projectInfo =>
@@ -304,5 +364,91 @@ class PPMSSyncService (application: Application) extends Plugin {
     Logger.info("Synced " + numProjects + " projects")
   } // end syncProjectsFromPPMS
 
+  /**
+  * sync core id details from PPMS
+  */
+  private def syncCoresFromPPMS(): Unit = {
+    Logger.info("Start syncing cores ...")
+    if(ppmsUrl.equals("") || ppmsPumaApiKey.equals("") || ppmsApi2Key.equals("")) {
+      Logger.info("ppms.url or key not provided, ignore")
+      return
+    }
+    ppmsCores = Map.empty
+    // get user orgs
+    val coresJsonArr = PPMSUtils.getPPMSReport(ppmsUrl, ppmsApi2Key, ppmsGetCoresAction)
+    coresJsonArr.value.foreach { core =>
+      val coreid: Int = (core \ "Core ID").as[Int]
+      if (!ppmsCores.contains(coreid)) {
+        ppmsCores(coreid) = new PPMSCore(
+          inst       = (core \ "Institution").as[String],
+          facilShort = (core \ "Facility Short Name").as[String],
+          facilLong  = (core \ "Facility Long Name").as[String],
+          rorid      = (core \ "ROR ID").as[String]
+        )
+        Logger.debug(coreid + ": " + ppmsCores(coreid).inst + ", " + ppmsCores(coreid).facilShort + ", " + ppmsCores(coreid).facilLong + ", " + ppmsCores(coreid).rorid)
+      }
+    }
+    Logger.info("Synced " + ppmsCores.size + " cores")
+  } // end syncCoresFromPPMS
+
+  /**
+  * sync user ids from PPMS
+  */
+  private def syncUseridsFromPPMS(): Unit = {
+    Logger.info("Start syncing user ids ...")
+    if(ppmsUrl.equals("") || ppmsPumaApiKey.equals("") || ppmsApi2Key.equals("")) {
+      Logger.info("ppms.url or key not provided, ignore")
+      return
+    }
+    ppmsUserids = Map.empty
+    ppmsCoreids.foreach { ppmsCoreid =>
+      val useridsJsonArr = PPMSUtils.getPPMSUserids(ppmsUrl, ppmsApi2Key, ppmsGetUseridsAction, ppmsCoreid)
+      Logger.info("PPMS get user ids: got " + useridsJsonArr.value.size + " users for coreid " + ppmsCoreid)
+      useridsJsonArr.value.foreach { user =>
+        val login: String = (user \ "User Login").as[String]
+        if (!ppmsUserids.contains(login)) {
+          ppmsUserids(login) = new PPMSUserid(
+            uid    = (user \ "User ID").as[Int],
+            coreids = List.empty,
+            orcid  = (user \ "User ORCID").as[String]
+          )
+        }
+        ppmsUserids(login).coreids = ppmsUserids(login).coreids :+ ppmsCoreid.toInt
+        Logger.debug(login + ": " + ppmsUserids(login).uid + ", " + ppmsUserids(login).coreids + ", " + ppmsUserids(login).orcid)
+      }
+    }
+    Logger.info("Synced " + ppmsUserids.size + " userids")
+  } // end syncUseridsFromPPMS
+
+  /**
+  * sync user org details from PPMS
+  */
+  private def syncUserOrgsFromPPMS(): Unit = {
+    Logger.info("Start syncing user orgs ...")
+    if(ppmsUrl.equals("") || ppmsPumaApiKey.equals("") || ppmsApi2Key.equals("")) {
+      Logger.info("ppms.url or key not provided, ignore")
+      return
+    }
+    ppmsUserOrgs = Map.empty
+    // get user orgs
+    val userOrgsJsonArr = PPMSUtils.getPPMSReport(ppmsUrl, ppmsApi2Key, ppmsGetUserOrgsAction)
+    val uids: List[Int] = ppmsUserids.values.map{_.uid}.toList
+    userOrgsJsonArr.value.foreach { userOrg =>
+      val uid: Int = (userOrg \ "Userid").as[Int]
+      if (uids.contains(uid)) {
+        ppmsUserOrgs(uid) = new PPMSUserOrg(
+          user     = (userOrg \ "Username").as[String],
+          grpid    = (userOrg \ "Groupid").as[Int],
+          grp      = (userOrg \ "Group").as[String],
+          dept     = (userOrg \ "Department").as[String],
+          inst     = (userOrg \ "Institution").as[String],
+          instType = (userOrg \ "InstitutionType").as[String],
+          grpCat   = (userOrg \ "GroupCategory").as[String]
+        )
+        Logger.debug(uid + ": " + ppmsUserOrgs(uid).user + ", " + ppmsUserOrgs(uid).grpid + ", " + ppmsUserOrgs(uid).grp + ", " + ppmsUserOrgs(uid).dept + ", " + ppmsUserOrgs(uid).inst + ", " + ppmsUserOrgs(uid).instType + ", " + ppmsUserOrgs(uid).grpCat)
+      }
+    }
+    Logger.info("Synced orgs for " + ppmsUserOrgs.size + " users")
+  } // end syncUserOrgsFromPPMS
 
 }
