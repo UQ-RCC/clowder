@@ -1,7 +1,7 @@
 # ----------------------------------------------------------------------
 # BUILD CLOWDER DIST
 # ----------------------------------------------------------------------
-FROM openjdk:8-jdk-bullseye as clowder-build
+FROM ubuntu:xenial as clowder-build
 
 ARG BRANCH="unknown"
 ARG VERSION="unknown"
@@ -16,7 +16,8 @@ WORKDIR /src
 # install clowder libraries (hopefully cached)
 COPY sbt* /src/
 COPY project /src/project
-RUN ./sbt update
+RUN apt-get update && apt-get -y install openjdk-8-jdk zip \
+    && ./sbt update
 
 # environemnt variables
 ENV BRANCH=${BRANCH} \
@@ -33,7 +34,6 @@ RUN rm -rf target/universal/clowder-*.zip clowder clowder-* \
     && ./sbt dist \
     && unzip -q target/universal/clowder-*.zip \
     && mv clowder-* clowder \
-    && apt-get update && apt-get -y install zip \
     && for x in $(find clowder -name \*.jar); do \
          zip -d $x org/apache/log4j/net/JMSAppender.class org/apache/log4j/net/SocketServer.class | grep 'deleting:' && echo "fixed $x"; \
        done; \
@@ -43,10 +43,10 @@ RUN rm -rf target/universal/clowder-*.zip clowder clowder-* \
 # ----------------------------------------------------------------------
 # BUILD CLOWDER
 # ----------------------------------------------------------------------
-FROM openjdk:8-jre-bullseye as clowder-runtime
+FROM ubuntu:xenial as clowder-runtime
 
 # add bash
-RUN apt-get update && apt-get install -y bash curl bind9
+RUN apt-get update && apt-get install -y openjdk-8-jre wget bash curl bind9
 #RUN apk add --no-cache bash curl
 
 # environemnt variables
@@ -57,7 +57,8 @@ ARG GITSHA1="unknown"
 ENV BRANCH=${BRANCH} \
     VERSION=${VERSION} \
     BUILDNUMBER=${BUILDNUMBER} \
-    GITSHA1=${GITSHA1}
+    GITSHA1=${GITSHA1} \
+    JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64/jre
 
 # expose some properties of the container
 EXPOSE 9000

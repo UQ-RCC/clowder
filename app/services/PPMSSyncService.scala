@@ -8,6 +8,7 @@ import util.{SpaceConfig, PPMSUtils}
 import play.api.Play._
 import play.api.{ Plugin, Logger, Application }
 import play.libs.Akka
+import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.Map
 import scala.concurrent.duration._
 import play.api.libs.concurrent.Execution.Implicits._
@@ -350,14 +351,29 @@ class PPMSSyncService (application: Application) extends Plugin {
     }
     // get projects
     var numProjects = 0
+    val sharedProjects = new ListBuffer[Int]()
     ppmsCoreids.foreach { ppmsCoreid =>
       val projectsJsonArr = PPMSUtils.getPPMSProjects(ppmsUrl, ppmsPumaApiKey, ppmsGetProjectAction, ppmsCoreid)
       numProjects += projectsJsonArr.value.size
-      projectsJsonArr.value.foreach { projectInfo =>
-        val projId = (projectInfo \ "ProjectRef").as[Int]
+      projectsJsonArr.value.foreach { ppmsProjectInfo =>
+        var projectInfo = ppmsProjectInfo
+        val projId = (ppmsProjectInfo \ "ProjectRef").as[Int]
+        val coreId = (ppmsProjectInfo \ "CoreFacilityRef").as[Int]
         if ( projId >= startingProjectId ) {
-          val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
-          projectXtraProfileArr.value.foreach(syncProject(projectInfo, _))
+          var addProject = true
+          if ( coreId == 0 ) {
+            Logger.info("Shared project: " + projId)
+            addProject = !sharedProjects.contains(projId)
+            if ( addProject ) {
+              Logger.info("Shared project: " + projId + " - using core id: " + ppmsCoreid)
+              projectInfo = ppmsProjectInfo.asInstanceOf[JsObject] + ("CoreFacilityRef" -> JsString(ppmsCoreid))
+              sharedProjects += projId
+            }
+          }
+          if ( addProject ) {
+            val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
+            projectXtraProfileArr.value.foreach(syncProject(projectInfo, _))
+          }
         }
       }
     }
