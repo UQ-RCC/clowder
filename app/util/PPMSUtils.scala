@@ -93,12 +93,13 @@ object PPMSUtils {
         }
     ]
     */
-    def getPPMSExtraProjectProfile(url: String, api2key: String, projectId: Integer, extraProfileAction: String): JsArray = {
+    def getPPMSExtraProjectProfile(url: String, api2key: String, extraProfileAction: String, projectId: Integer, coreid: String): JsArray = {
         val params = new ArrayList[NameValuePair]()
         params.add(new BasicNameValuePair("apikey", api2key))
         params.add(new BasicNameValuePair("action", extraProfileAction))
-        params.add(new BasicNameValuePair("outformat", "json"))
         params.add(new BasicNameValuePair("projectId", projectId.toString))
+        params.add(new BasicNameValuePair("coreid", coreid))
+        params.add(new BasicNameValuePair("outformat", "json"))
         
         val ppmsResponse = requestPPMS(url, true, params)
         ppmsResponse match {
@@ -198,10 +199,11 @@ object PPMSUtils {
     }
 
 
-    def getPPMSReport(url: String, api2key: String, reportAction: String): JsArray = {
+    def getPPMSReport(url: String, api2key: String, reportAction: String, coreid: String): JsArray = {
         val params = new ArrayList[NameValuePair]()
         params.add(new BasicNameValuePair("apikey", api2key))
         params.add(new BasicNameValuePair("action", reportAction))
+        params.add(new BasicNameValuePair("coreid", coreid))
         params.add(new BasicNameValuePair("outformat", "json"))
 
         val ppmsResponse = requestPPMS(url, true, params)

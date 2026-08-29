@@ -371,7 +371,7 @@ class PPMSSyncService (application: Application) extends Plugin {
             }
           }
           if ( addProject ) {
-            val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, projId, ppmsGetXtraProjectProfileAction)
+            val projectXtraProfileArr = PPMSUtils.getPPMSExtraProjectProfile(ppmsUrl, ppmsApi2Key, ppmsGetXtraProjectProfileAction, projId, ppmsCoreid)
             projectXtraProfileArr.value.foreach(syncProject(projectInfo, _))
           }
         }
@@ -391,7 +391,7 @@ class PPMSSyncService (application: Application) extends Plugin {
     }
     ppmsCores = Map.empty
     // get user orgs
-    val coresJsonArr = PPMSUtils.getPPMSReport(ppmsUrl, ppmsApi2Key, ppmsGetCoresAction)
+    val coresJsonArr = PPMSUtils.getPPMSReport(ppmsUrl, ppmsApi2Key, ppmsGetCoresAction, ppmsCoreids.head)
     coresJsonArr.value.foreach { core =>
       val coreid: Int = (core \ "Core ID").as[Int]
       if (!ppmsCores.contains(coreid)) {
@@ -447,7 +447,7 @@ class PPMSSyncService (application: Application) extends Plugin {
     }
     ppmsUserOrgs = Map.empty
     // get user orgs
-    val userOrgsJsonArr = PPMSUtils.getPPMSReport(ppmsUrl, ppmsApi2Key, ppmsGetUserOrgsAction)
+    val userOrgsJsonArr = PPMSUtils.getPPMSReport(ppmsUrl, ppmsApi2Key, ppmsGetUserOrgsAction, ppmsCoreids.head)
     val uids: List[Int] = ppmsUserids.values.map{_.uid}.toList
     userOrgsJsonArr.value.foreach { userOrg =>
       val uid: Int = (userOrg \ "Userid").as[Int]
